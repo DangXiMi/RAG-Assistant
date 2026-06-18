@@ -7,3 +7,9 @@ embedding:
   model_name: "sentence-transformers/all-MiniLM-L6-v2"
   batch_size: 32
   device: "auto"  # auto, cpu, cuda
+
+qdrant:
+  host: ":memory:" 
+  port: 6333
+  collection_name: "rag_documents"
+  vector_size: 384  

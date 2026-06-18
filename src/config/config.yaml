@@ -1,0 +1,9 @@
+chunker:
+  chunk_size: 512
+  overlap: 50
+  separator: ["\n\n", "\n", ". ", "? ", "! ", " ", ""]
+
+embedding:
+  model_name: "sentence-transformers/all-MiniLM-L6-v2"
+  batch_size: 32
+  device: "auto"  # auto, cpu, cuda

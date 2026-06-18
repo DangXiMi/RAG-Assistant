@@ -52,3 +52,34 @@ production-rag/
 ├── .env.example
 └── README.md
 ```
+src/ – installable package (pip install -e .). Clean imports.
+
+ingestion/ – isolated from query path. Can be run as a separate process (CLI or background worker).
+
+retrieval/base.py – defines retrieve(query, top_k). All retrievers implement it. API code only depends on BaseRetriever.
+
+evaluation/ – from day 1, even dummy, to enforce thinking about metrics.
+
+infra/docker-compose.yml – Qdrant, Postgres, Redis. One command to start all backing services.
+
+config/ – no hardcoded constants. Change embedding model without touching code.
+
+## Installation
+
+Install pip-tools:
+
+```bash
+pip install pip-tools
+```
+
+Sync dependencies from the lock file:
+
+```bash
+pip-sync requirements.lock
+```
+
+To regenerate the lock file after updating `requirements.in`:
+
+```bash
+pip-compile --generate-hashes -o requirements.lock requirements.in
+```

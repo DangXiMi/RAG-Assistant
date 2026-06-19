@@ -3,6 +3,7 @@ from typing import Dict, List
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct
 from src.ingestion.chunker import Chunk
+import logging
 
 class Indexer():
     def __init__(self, config: Dict = CONFIG):
@@ -17,8 +18,7 @@ class Indexer():
             )
         self.collection_name = config["qdrant"]["collection_name"]
         self.vector_size = config["qdrant"]["vector_size"]
-    
-
+        logging.info("Loaded Qdrant client")
 
     def ensure_collection(self):
         collection_name = self.config["qdrant"]["collection_name"]
@@ -46,7 +46,7 @@ class Indexer():
                 vector=vector,
                 payload={
                     "text": chunk.text,
-                    **chunk.metadata,
+                     **chunk.metadata,
                 },
             )
             for chunk, vector in zip(chunks, vectors)

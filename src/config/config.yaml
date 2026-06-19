@@ -13,3 +13,7 @@ qdrant:
   port: 6333
   collection_name: "rag_documents"
   vector_size: 384  
+
+retrieval:
+  default_top_k: 5
+  score_threshold: 0.7

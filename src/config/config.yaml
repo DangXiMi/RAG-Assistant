@@ -21,3 +21,8 @@ retrieval:
 sparse_retrieval:
   default_top_k: 5
   score_threshold: 0.0 
+  
+hybrid_retrieval:
+  candidate_k: 10   # How many to fetch from each individual retriever
+  final_k: 5        # How many to return after fusion
+  rrf_k: 60         # The RRF smoothing constant

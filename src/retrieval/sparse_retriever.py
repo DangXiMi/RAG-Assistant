@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional
 import psycopg2
-from src.config import CONFIG
+from src.config.config import CONFIG
 
 
 class SparseRetriever:

@@ -18,7 +18,7 @@ class Embedder:
         
         self.batch_size = self.config["embedding"]["batch_size"]
         self.model = SentenceTransformer(self.model_name, device=self.device)
-        self.dimension = self.model.get_embedding_dimension()
+        # self.dimension = self.model.get_embedding_dimension()
         logging.info(f"Loaded {self.model_name} model")
 
     def embed(self, texts: list[str]) -> list[list[float]]:

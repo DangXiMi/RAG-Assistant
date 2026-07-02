@@ -32,3 +32,22 @@ generation:
   temperature: 0.0  # deterministic
   max_tokens: 512
 
+hyde:
+  enabled: True
+  model: "llama3.1:8b"
+  prompt_template: |
+    Write a short document that answers the following question. Include specific facts and figures.
+    Question: {query}
+    Hypothetical Document:
+  temperature: 0.0
+
+multi_query:
+  enabled: True
+  num_queries: 3
+  candidate_k: 10   
+  temperature: 0.0
+  rrf_k: 60
+  prompt_template: |
+    System: You are an AI assistant. Generate {num_queries} different variations of the user's question to help retrieve relevant documents. Each variation should be a single sentence, rephrased or expanded, but keeping the same meaning. Return only the variations, one per line, without numbering. 
+    Original question: {query}
+    Variations:         

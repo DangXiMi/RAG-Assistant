@@ -2,6 +2,7 @@ from src.retrieval.dense_retriever import DenseRetriever
 from src.retrieval.sparse_retriever import SparseRetriever
 from typing import List, Dict, Optional
 from src.config.config import CONFIG
+from src.utils.RRF import RRF
 
 import logging
 
@@ -51,46 +52,9 @@ class HybridRetriever():
                 f"Sparse retrieval failed: {e}"
             ) from e
 
-        fused_docs: Dict[str, Dict] = {}
+        retrieval_result = [dense_results, sparse_results]
+        result = RRF(top_k=top_k, rrf_k = self.rrf_k, retrievers=retrieval_result)
 
-        # Dense rankings
-        for rank, doc in enumerate(dense_results):
-            doc_id = str(doc["id"])
-
-            if doc_id not in fused_docs:
-                fused_docs[doc_id] = {
-                    "id": doc_id,
-                    "text": doc.get("text", ""),
-                    "metadata": doc.get("metadata", {}),
-                    "score": 0.0,
-                }
-
-            fused_docs[doc_id]["score"] += (
-                1.0 / (self.rrf_k + rank + 1)
-            )
-
-        # Sparse rankings
-        for rank, doc in enumerate(sparse_results):
-            doc_id = str(doc["id"])
-
-            if doc_id not in fused_docs:
-                fused_docs[doc_id] = {
-                    "id": doc_id,
-                    "text": doc.get("text", ""),
-                    "metadata": doc.get("metadata", {}),
-                    "score": 0.0,
-                }
-
-            fused_docs[doc_id]["score"] += (
-                1.0 / (self.rrf_k + rank + 1)
-            )
-
-        results = sorted(
-            fused_docs.values(),
-            key=lambda x: x["score"],
-            reverse=True,
-        )
-
-        return results[:top_k]
+        return result
 
         

@@ -51,3 +51,10 @@ multi_query:
     System: You are an AI assistant. Generate {num_queries} different variations of the user's question to help retrieve relevant documents. Each variation should be a single sentence, rephrased or expanded, but keeping the same meaning. Return only the variations, one per line, without numbering. 
     Original question: {query}
     Variations:         
+
+reranking:
+  enabled: True
+  model_name: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  candidate_k: 50   # Fetch this many from base retriever
+  final_k: 5        # Return this many after reranking
+  batch_size: 32

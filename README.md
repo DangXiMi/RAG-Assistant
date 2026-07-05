@@ -29,7 +29,6 @@ rag-knowledge-assistant/
 ├── requirements.in # Loose dependencies
 ├── requirements.lock # Exact pinned dependencies with hashes
 ├── .env.example # Environment variable template
-├── config/
 │ 
 ├── src/
 | ├──ui/
@@ -67,7 +66,7 @@ rag-knowledge-assistant/
 
 **1. Clone the repository**
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/DangXiMi/RAG-Assistant
 cd rag-knowledge-assistant
 ```
 

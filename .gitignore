@@ -17,6 +17,5 @@ data/processed/
 venv/
 .vscode/
 .idea/
-test_e2e.py
 
 .continue/

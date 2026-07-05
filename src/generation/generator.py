@@ -1,7 +1,7 @@
 from src.config.config import CONFIG
 from typing import Dict, List
 from src.retrieval.hybrid_retriever import HybridRetriever
-
+ 
 from langsmith import traceable
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
@@ -10,14 +10,18 @@ from langchain_core.documents import Document
 
 
 class Generator():
-    def __init__(self, retriever: HybridRetriever, config: dict = CONFIG):
+    def __init__(self, retriever = None, config: dict = CONFIG):
         self.config = config
         generator_cfg = config.get("generator",{})
         self.model_name = generator_cfg.get("model", "llama3.1:8b")
         self.temperature = generator_cfg.get("temperature", 0.0)
         self.max_tokens = generator_cfg.get("max_tokens", 512)
         
-        self.retriever = retriever
+        if retriever:
+            self.retriever = retriever
+        else: 
+            raise NotImplementedError("Retriever must be provided")
+        
         self.model = ChatOllama(
             model=self.model_name,
             temperature=self.temperature,
@@ -44,8 +48,11 @@ class Generator():
         return g_prompt
     
     @traceable(name="retrieve_documents")
-    def retrieve(self, query, top_k):
-        raw = self.retriever.search(query=query, top_k=top_k)
+    def retrieve(self, query, top_k, retriever):
+        used_retriever = retriever if retriever else self.retriever
+            
+            
+        raw = used_retriever.search(query=query, top_k=top_k)
         return [Document(page_content=d["text"], metadata={"doc_id": d["id"], **d["metadata"]}) for d in raw]
     
     @traceable(name="context_builder")
@@ -68,9 +75,9 @@ class Generator():
         return self.model.invoke(messages)
         
     @traceable(name="rag_pipeline")
-    def run(self, query: str, top_k: int = 5):
+    def run(self, query: str, top_k: int = 5, retriever = None):
 
-        docs = self.retrieve(query, top_k)
+        docs = self.retrieve(query, top_k, retriever)
 
         context = self.build_context(docs)
 

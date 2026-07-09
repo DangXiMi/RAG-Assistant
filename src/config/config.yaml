@@ -16,7 +16,7 @@ qdrant:
 
 retrieval:
   default_top_k: 5
-  score_threshold: 0.7
+  score_threshold: 0.0
 
 sparse_retrieval:
   default_top_k: 5

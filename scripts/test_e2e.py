@@ -129,6 +129,27 @@ def main():
     for i, doc in enumerate(retrieved_docs):
         logger.info(f"Rank {i+1}: [id={doc['id']}] score={doc['score']:.4f}")
         logger.info(f"  Text: {doc['text'][:150]}...")
+        
+    print("=" * 50)
+    print("DENSE")
+    dense_docs = dense.search(test_query, top_k=3)
+    print("count:", len(dense_docs))
+    for d in dense_docs:
+        print(d)
+
+    print("=" * 50)
+    print("SPARSE")
+    sparse_docs = sparse.search(test_query, top_k=3)
+    print("count:", len(sparse_docs))
+    for d in sparse_docs:
+        print(d)
+
+    print("=" * 50)
+    print("HYBRID")
+    hybrid_docs = hybrid.search(test_query, top_k=3)
+    print("count:", len(hybrid_docs))
+    for d in hybrid_docs:
+        print(d)
 
     # 10. Generate answer
     logger.info("--- Generating Answer ---")

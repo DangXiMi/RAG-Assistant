@@ -58,3 +58,8 @@ reranking:
   candidate_k: 50   # Fetch this many from base retriever
   final_k: 5        # Return this many after reranking
   batch_size: 32
+
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0

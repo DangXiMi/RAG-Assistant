@@ -25,6 +25,10 @@ class Embedder:
         if texts is None:
             return []
         
-        embeddings = self.model.encode(texts).tolist()
+        embeddings = self.model.encode(
+            texts,
+            batch_size=self.batch_size,
+            normalize_embeddings=True,
+        ).tolist()
         return embeddings
     

@@ -1,79 +1,107 @@
 # src/ingestion/worker.py
-
 from __future__ import annotations
 
 import asyncio
+import json 
 from pathlib import Path
 from typing import Any
 
 from arq import create_pool
 from arq.connections import RedisSettings
 
-from src.ingestion.chunker import chunk_text
+from src.ingestion.chunker import chunk_text, Chunk
 from src.ingestion.embedder import Embedder
 from src.ingestion.indexer import Indexer
 
 
-async def ingest_document(file_path: str, metadata: dict[str, Any]) -> dict[str, Any]:
-    """
-    Ingest a document by:
-      1. Reading the file
-      2. Chunking the text
-      3. Embedding each chunk
-      4. Indexing the embedded chunks
+# Initialize embedder once (reused across jobs)
+embedder = Embedder()
 
-    Returns:
+
+async def update_job_status(
+    job_id: str,
+    status: dict[str, Any],
+):
+    redis = await create_pool(RedisSettings())
+    await redis.set(
+        f"job:status:{job_id}",
+        json.dumps(status),
+    )
+    await redis.close()
+
+
+async def ingest_document(
+    ctx,
+    file_path: str,
+    metadata: dict[str, Any],
+    job_id: str,
+) -> dict[str, Any]:
+
+    await update_job_status(
+        job_id,
         {
-            "status": "success",
-            "file_path": "...",
-            "chunks": N
+            "status": "processing",
+            "result": None,
+        },
+    )
+
+    try:
+        path = Path(file_path)
+
+        if not path.exists():
+            raise FileNotFoundError(
+                f"File not found: {file_path}"
+            )
+
+        # 1. Extract text (for now, simple text extraction)
+        text = path.read_text(encoding="utf-8")
+
+        # 2. Chunk the text
+        chunks = chunk_text(text, metadata=metadata)
+
+        # 3. Extract chunk texts for embedding
+        chunk_texts = [c.text for c in chunks]
+
+        # 4. Embed all chunks
+        embeddings = embedder.embed(chunk_texts)
+
+        # 5. Index into Qdrant
+        indexer = Indexer()
+        indexer.ensure_collection()
+        indexer.index(chunks, embeddings)
+
+        result = {
+            "file_path": str(path),
+            "chunks": len(chunks),
+            "metadata": metadata,
         }
-    """
-    path = Path(file_path)
 
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {file_path}")
-
-    text = path.read_text(encoding="utf-8")
-
-    chunks = chunk_text(text)
-
-    indexed = 0
-
-    for i, chunk in enumerate(chunks):
-        embedding = await Embedder.embed(chunk)
-
-        payload = {
-            "text": chunk,
-            "embedding": embedding,
-            "metadata": {
-                **metadata,
-                "file_path": str(path),
-                "chunk_index": i,
+        await update_job_status(
+            job_id,
+            {
+                "status": "done",
+                "result": result,
             },
-        }
+        )
 
-        result = Indexer.index(payload)
-        if asyncio.iscoroutine(result):
-            await result
+        return result
 
-        indexed += 1
-
-    return {
-        "status": "success",
-        "file_path": str(path),
-        "chunks": indexed,
-    }
+    except Exception as e:
+        await update_job_status(
+            job_id,
+            {
+                "status": "failed",
+                "result": {
+                    "error": str(e)
+                },
+            },
+        )
+        raise
 
 
 class WorkerSettings:
-    """
-    arq worker configuration.
-    """
-
     functions = [ingest_document]
-
     redis_settings = RedisSettings()
-
-    job_timeout = 60 * 30  
+    job_timeout = 60 * 30  # 30 minutes
     max_jobs = 10
+    max_tries = 3

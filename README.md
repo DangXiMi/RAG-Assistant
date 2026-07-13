@@ -179,4 +179,158 @@ python scripts/test_e2e.py
 ```
 ---
 
+## 🖥️ Backend API (FastAPI)
+
+The system exposes a RESTful API for programmatic access and frontend integration.
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/health` | Health check – returns `{"status": "ok"}`. |
+| `POST` | `/api/v1/query` | Submit a RAG query. |
+| `POST` | `/api/v1/ingest` | Upload a document for async ingestion. |
+| `GET` | `/api/v1/job/{job_id}` | Check ingestion job status. |
+
+### Query Endpoint
+
+**Request:**
+```json
+POST /api/v1/query
+{
+    "question": "What is the JWST launch date?",
+    "user_id": "user_123",
+    "mode": "Hybrid"
+}
+```
+
+**Response:
+```json
+{
+    "answer": "The James Webb Space Telescope was launched on December 25, 2021.",
+    "sources": ["ede2a4f4-1a18-4859-9624-776a85d766e5"],
+    "contexts": [
+        "The James Webb Space Telescope (JWST) was launched on December 25, 2021..."
+    ]
+}
+```
+
+### Ingestion Endpoint
+**Request:***
+
+```bash
+curl -X POST http://localhost:8000/api/v1/ingest \
+    -F "file=@document.pdf" \
+    -F 'metadata={"category":"research"}'
+
+```
+
+**Response:**
+```json
+{
+    "job_id": "a1b2c3d4-...",
+    "status": "queued"
+}
+```
+
+### Job Status Endpoint
+**Request:**
+
+```bash
+GET /api/v1/job/a1b2c3d4-...
+Response (Processing):
+```
+```json
+{
+    "status": "processing",
+    "result": null
+}
+```
+**Response:***
+
+```json
+{
+    "status": "done",
+    "result": {
+        "file_path": "uploads/a1b2c3d4_document.pdf",
+        "chunks": 42,
+        "metadata": {"category": "research"}
+    }
+}
+```
+---
+## ⚙️ Async Ingestion (arq + Redis)
+Document ingestion runs in the background to avoid blocking the API.
+
+### Start the Worker
+```bash
+# Make the script executable
+chmod +x scripts/start_worker.sh
+
+# Start the worker
+./scripts/start_worker.sh
+
+# Or run directly
+arq src.ingestion.worker.WorkerSettings
+```
+
+### Worker Configuration
+
+Setting	Value	Description
+job_timeout	1800s (30 min)	Max time per ingestion job.
+max_jobs	10	Concurrent jobs per worker.
+max_tries	3	Retry failed jobs up to 3 times.
+
+### How It Works
+1. User uploads a document → API generates a job_id and enqueues the task.
+
+2. Worker picks up the job → extracts text, chunks, embeds, and indexes.
+
+3. Status is updated in Redis → frontend can poll for completion.
+
+4. Document is now searchable → can be retrieved via the query endpoint.
+---
+
+## 📈 Monitoring & Debugging
+
+FastAPI Docs – Visit http://localhost:8000/docs for interactive API documentation.
+
+LangSmith – View traces at https://smith.langchain.com/.
+
+Redis – Inspect job status with redis-cli GET job:status:{job_id}.
+
+Logs – Worker logs appear in the terminal where start_worker.sh is running.
+
+---
+
+## 🔧 Troubleshooting
+Issue	Likely Cause	Fix
+ConnectionError to backend	FastAPI not running	Run python -m src.api.main
+Worker not processing jobs	Redis not running	Start Redis: docker run -d -p 6379:6379 redis
+Job stuck in queued	Worker not started	Run ./scripts/start_worker.sh
+FileNotFoundError in worker	Upload path incorrect	Check uploads/ directory exists
+text
+
+---
+
+## Test
+test the full ingestion flow:
+
+```bash
+# 1. Start Redis
+docker run -d -p 6379:6379 redis
+
+# 2. Start the worker
+arq src.ingestion.worker.WorkerSettings
+
+# 3. In another terminal, start FastAPI
+uvicorn src.api.main:app --reload
+
+# 4. Upload a test file
+curl -X POST http://localhost:8000/api/v1/ingest -F "file=@test.txt"
+
+# 5. Check the job status
+curl http://localhost:8000/api/v1/job/{job_id}
+
+
 ## 📄 License

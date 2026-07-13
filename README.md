@@ -276,10 +276,12 @@ arq src.ingestion.worker.WorkerSettings
 
 ### Worker Configuration
 
-Setting	Value	Description
-job_timeout	1800s (30 min)	Max time per ingestion job.
-max_jobs	10	Concurrent jobs per worker.
-max_tries	3	Retry failed jobs up to 3 times.
+| Setting | Value | Description |
+|---------|-------|-------------|
+| job_timeout | 1800s (30 min) | Max time per ingestion job. |
+| max_jobs | 10 | Concurrent jobs per worker. |
+| max_tries | 3 | Retry failed jobs up to 3 times. |
+
 
 ### How It Works
 1. User uploads a document → API generates a job_id and enqueues the task.
@@ -304,12 +306,12 @@ Logs – Worker logs appear in the terminal where start_worker.sh is running.
 ---
 
 ## 🔧 Troubleshooting
-Issue	Likely Cause	Fix
-ConnectionError to backend	FastAPI not running	Run python -m src.api.main
-Worker not processing jobs	Redis not running	Start Redis: docker run -d -p 6379:6379 redis
-Job stuck in queued	Worker not started	Run ./scripts/start_worker.sh
-FileNotFoundError in worker	Upload path incorrect	Check uploads/ directory exists
-text
+| Issue | Likely Cause | Fix |
+|-------|--------------|-----|
+| ConnectionError to backend | FastAPI not running | Run `python -m src.api.main` |
+| Worker not processing jobs | Redis not running | Start Redis: `docker run -d -p 6379:6379 redis` |
+| Job stuck in queued | Worker not started | Run `./scripts/start_worker.sh` |
+| FileNotFoundError in worker | Upload path incorrect | Check the `uploads/` directory exists. |
 
 ---
 

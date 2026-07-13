@@ -10,4 +10,4 @@ class QueryRequest(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     sources: list
-    context: Optional[list[str]] = None
+    contexts: Optional[list[str]] = None

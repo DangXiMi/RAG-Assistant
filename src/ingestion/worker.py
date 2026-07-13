@@ -1,10 +1,14 @@
 # src/ingestion/worker.py
 from __future__ import annotations
 
+import os
 import asyncio
 import json 
 from pathlib import Path
 from typing import Any
+from pypdf import PdfReader
+from docx import Document
+from bs4 import BeautifulSoup
 
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -12,10 +16,30 @@ from arq.connections import RedisSettings
 from src.ingestion.chunker import chunk_text, Chunk
 from src.ingestion.embedder import Embedder
 from src.ingestion.indexer import Indexer
+from src.config.config import CONFIG
+from src.ingestion.data_pipeline import seed_postgres
 
+import psycopg2
 
 # Initialize embedder once (reused across jobs)
 embedder = Embedder()
+
+# Extract text based on file extension
+def extract_text(file_path: Path) -> str:
+    ext = file_path.suffix.lower()
+    if ext == ".pdf":
+        reader = PdfReader(file_path)
+        return "\n".join([page.extract_text() for page in reader.pages])
+    elif ext == ".docx":
+        doc = Document(file_path)
+        return "\n".join([p.text for p in doc.paragraphs])
+    elif ext == ".html" or ext == ".htm":
+        with open(file_path, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f, "html.parser")
+            return soup.get_text()
+    else:
+        # Assume plain text
+        return file_path.read_text(encoding="utf-8")
 
 
 async def update_job_status(
@@ -54,10 +78,11 @@ async def ingest_document(
             )
 
         # 1. Extract text (for now, simple text extraction)
-        text = path.read_text(encoding="utf-8")
+        text = extract_text(path)
 
         # 2. Chunk the text
         chunks = chunk_text(text, metadata=metadata)
+        
 
         # 3. Extract chunk texts for embedding
         chunk_texts = [c.text for c in chunks]
@@ -66,10 +91,20 @@ async def ingest_document(
         embeddings = embedder.embed(chunk_texts)
 
         # 5. Index into Qdrant
-        indexer = Indexer()
+        indexer = Indexer(config=CONFIG)
         indexer.ensure_collection()
         indexer.index(chunks, embeddings)
+        
+        conn = psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=os.getenv("POSTGRES_PORT", "5432"),
+        dbname=os.getenv("POSTGRES_DB", "rag_metadata"),
+        user=os.getenv("POSTGRES_USER", "raglab"),
+        password=os.getenv("POSTGRES_PASSWORD", "raglab"),)
 
+        conn.autocommit = True
+        seed_postgres(conn, chunk_texts)
+        
         result = {
             "file_path": str(path),
             "chunks": len(chunks),

@@ -12,8 +12,7 @@ from src.api.dependencies import QueryRequest, QueryResponse
 
 from src.ingestion.data_pipeline import load_pipeline
 
-from src.api.routes import ingest
-from src.api.routes import status
+from src.api.routes import ingest, status, query
 
 
 
@@ -62,6 +61,10 @@ app.include_router(
 
 app.include_router(
     status.router
+)
+
+app.include_router(
+    query.router
 )
 
 if __name__ == "__main__":

@@ -46,23 +46,23 @@ class Generator:
 
         self.prompt = ChatPromptTemplate.from_template(
         """
-You are a helpful assistant.
+        You are a helpful assistant.
 
-Answer the question using ONLY the provided context.
+        Answer the question using ONLY the provided context.
 
-If the answer cannot be found in the context,
-say "I don't know".
+        If the answer cannot be found in the context,
+        say "I don't know".
 
-Context:
-{context}
-
-
-Question:
-{question}
+        Context:
+        {context}
 
 
-Answer:
-"""
+        Question:
+        {question}
+
+
+        Answer:
+        """
         )
 
 
@@ -148,7 +148,6 @@ Answer:
         return {
             "answer": response.content,
 
-            # required by RAGAS
             "contexts": [
                 d.page_content
                 for d in docs

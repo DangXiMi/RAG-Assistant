@@ -28,19 +28,8 @@ from langchain_ollama import ChatOllama
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SAMPLE_DOCS = [
-    "The James Webb Space Telescope (JWST) was launched on December 25, 2021. It is the largest optical telescope in space.",
-    "JWST has a 6.5-meter diameter mirror, compared to Hubble's 2.4-meter mirror. It operates primarily in the infrared spectrum.",
-    "The Hubble Space Telescope was launched in 1990. It has made over 1.5 million observations during its lifetime.",
-    "Hubble's images have been used in over 21,000 peer-reviewed scientific papers.",
-    "The JWST is positioned at the Sun-Earth L2 Lagrange point, approximately 1.5 million kilometers from Earth.",
-    "Hubble orbits Earth at an altitude of about 540 kilometers.",
-    "The primary scientific goals of JWST include studying the formation of stars and galaxies, and characterizing exoplanet atmospheres.",
-    "Hubble's successor, JWST, is expected to fundamentally change our understanding of the early universe.",
-]
 
-
-def seed_postgres(conn):
+def seed_postgres(conn, docs):
     """Insert documents into PostgreSQL with FTS."""
     cur = conn.cursor()
     cur.execute("DROP TABLE IF EXISTS chunks CASCADE;")
@@ -57,34 +46,29 @@ def seed_postgres(conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON chunks USING GIN (tsv);")
     logger.info("Created chunks table in PostgreSQL")
 
-    for text in SAMPLE_DOCS:
+    for text in docs:
         doc_id = str(uuid.uuid4())
         cur.execute(
             "INSERT INTO chunks (id, text, metadata) VALUES (%s, %s, %s)",
-            (doc_id, text, Json({"source": "e2e_test"}))
+            (doc_id, text, Json({"source": "test"}))
         )
     conn.commit()
-    logger.info(f"Inserted {len(SAMPLE_DOCS)} documents into PostgreSQL")
+    logger.info(f"Inserted {len(docs)} documents into PostgreSQL")
 
 
-def seed_qdrant(indexer, embedder):
+def seed_qdrant(indexer, embedder, chunked, vectors):
     """Chunk, embed, and index documents into Qdrant."""
-    chunks = []
-    vectors = []
-    for text in SAMPLE_DOCS:
-        chunked = chunk_text(text, metadata={"source": "e2e_test"})
-        chunks.extend(chunked)
     
-    logger.info(f"Created {len(chunks)} chunks from sample documents")
+    logger.info(f"Created {len(chunked)} chunks from sample documents")
     
     # Embed all chunks
-    texts = [c.text for c in chunks]
+    texts = [c.text for c in chunked]
     vectors = embedder.embed(texts)
     
     # Index into Qdrant
     indexer.ensure_collection()
-    indexer.index(chunks, vectors)
-    logger.info(f"Indexed {len(chunks)} chunks into Qdrant")
+    indexer.index(chunked, vectors)
+    logger.info(f"Indexed {len(chunked)} chunks into Qdrant")
     
 def load_pipeline():
     """Load all RAG components and cache them."""

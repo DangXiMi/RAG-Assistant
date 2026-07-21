@@ -9,6 +9,58 @@
 - Compliance chatbot answering policy questions with traceable sources
 
 ---
+## Tech Stack
+
+Backend
+- FastAPI
+
+Vector Database
+- Qdrant
+
+Metadata
+- PostgreSQL
+
+Queue
+- Redis + ARQ
+
+Embedding
+- Sentence Transformers
+
+LLM
+- Ollama
+
+Frontend
+- Streamlit
+
+Evaluation
+- RAGAS
+
+Tracing
+- LangSmith
+
+---
+
+## 🚀 Quick Start (One Command)
+
+```bash
+docker-compose up --build
+```
+
+This starts:
+- **Qdrant** (vector DB)
+- **PostgreSQL** (metadata + FTS)
+- **Redis** (job queue)
+- **Ollama** (local LLM)
+- **FastAPI** (backend)
+- **arq Worker** (async ingestion)
+- **Streamlit UI** (frontend)
+
+Then open:
+- **UI:** http://localhost:8501
+- **API Docs:** http://localhost:8000/docs
+- **Health Check:** http://localhost:8000/api/v1/health → `{"status":"ok"}`
+
+---
 
 ## ✨ Features
 
@@ -17,8 +69,11 @@
 - **Cross-Encoder Reranking** – Re-ranks top candidates with a `ms-marco-MiniLM-L-6-v2` cross‑encoder for higher precision.
 - **Local LLM Integration** – Uses Ollama (llama3.1:8b) for fully offline, privacy‑friendly generation.
 - **Citation‑Grounded Answers** – Every answer includes source document IDs, and the prompt enforces “I don’t know” for out‑of‑context queries.
+- **Async Ingestion** – Upload documents and let the background worker process them without blocking the UI.
+- **Deduplication & Quality Scoring** – Prevents duplicate chunks and filters low‑quality content.
+- **Evaluation Suite** – RAGAS metrics (faithfulness, answer relevancy, context precision, recall) with a dedicated dashboard.
 - **LangSmith Observability** – Full tracing of retrieval and generation steps.
-- **Streamlit UI** – Interactive interface with a toggle to switch between retrieval modes (Hybrid, HyDE, Multi-Query, Reranked).
+- **Modern Streamlit UI** – Chat interface with file upload, real‑time job status, and source citation display.
 
 ---
 
@@ -26,43 +81,76 @@
 
 ```
 rag-knowledge-assistant/
-├── requirements.in # Loose dependencies
-├── requirements.lock # Exact pinned dependencies with hashes
-├── .env.example # Environment variable template
-│ 
+├── .env.example                          # Environment variables template
+├── .python-version                       # Python 3.11
+├── requirements.in                       # Loose dependencies
+├── requirements.lock                     # Pinned dependencies with hashes
+├── README.md                             # This file
+├── docker-compose.yml                    # Orchestrates all services
+├── infras/
+│   ├── Dockerfile.api                        # API container
+│   ├── Dockerfile.worker                     # Worker container
+│   └── Dockerfile.ui                         # UI container
+│
 ├── src/
-| ├──ui/
-| | └── app.py # Streamlit UI entrypoint
-│ ├── config/
-| | └── config.yaml # Central configuration (chunking, models, retrieval)
-│ │ └── config.py # Loads YAML and exports constants
-│ ├── ingestion/ # Data preparation
-│ │ ├── chunker.py # Sentence-aware chunking with overlap
-│ │ ├── embedder.py # SentenceTransformer (all-MiniLM-L6-v2)
-│ │ └── indexer.py # Qdrant vector indexer
-│  retrieval/ # Search strategies
-│ │ ├── dense_retriever.py # Qdrant vector search
-│ │ ├── sparse_retriever.py # PostgreSQL full‑text search (ts_rank)
-│ │ ├── hybrid_retriever.py # RRF fusion of dense + sparse
-│ │ ├── hyde_retriever.py # Hypothetical Document Embeddings
-│ │ ├── multi_query_retriever.py
-│ ├── utils/
-│ │ └── rrf.py # RRF fusion helper
-│ ├── reranking/
-│ │ └── cross_encoder_reranker.py
-│ └── generation/
-│   └── generator.py # Prompt builder + Ollama LLM caller
-├── tests/
-│ ├── unit/ # Unit tests for each component
-│ └── integration/ # Integration tests (PostgreSQL, Qdrant)
+│   ├── config/
+│   │   ├── config.py                     # Loads YAML and exports CONFIG constants
+│   │   └── config.yaml                   # Central configuration
+│   ├── ingestion/
+│   │   ├── chunker.py                    # Sentence-aware chunking with overlap
+│   │   ├── data_pipeline.py              # load_pipeline() for the API
+│   │   ├── deduplicator.py               # Exact hash deduplication (Redis)
+│   │   ├── embedder.py                   # SentenceTransformer (all-MiniLM-L6-v2)
+│   │   ├── indexer.py                    # Qdrant vector indexer
+│   │   └── worker.py                     # arq worker for async ingestion
+│   ├── retrieval/
+│   │   ├── dense_retriever.py            # Qdrant vector search
+│   │   ├── sparse_retriever.py           # PostgreSQL full-text search (ts_rank)
+│   │   ├── hybrid_retriever.py           # RRF fusion of dense + sparse
+│   │   ├── hyde_retriever.py             # Hypothetical Document Embeddings
+│   │   └── multi_query_retriever.py      # Multi-query expansion with RRF
+│   ├── reranking/
+│   │   └── cross_encoder_reranker.py     # Cross-encoder reranking
+│   ├── generation/
+│   │   └── generator.py                  # Prompt builder + Ollama LLM caller
+│   ├── evaluation/
+│   │   └── ragas_evaluator.py            # RAGAS evaluation harness
+│   ├── api/
+│   │   ├── main.py                       # FastAPI application entrypoint
+│   │   ├── models.py                     # Pydantic request/response models
+│   │   └── routes/
+│   │       ├── query.py                  # /api/v1/query endpoint
+│   │       ├── ingest.py                 # /api/v1/ingest endpoint
+│   │       └── status.py                 # /api/v1/job/{job_id} endpoint
+│   ├── utils/
+│   │   └── rrf.py                        # RRF fusion helper
+│   └── ui/
+│       ├── app.py                        # Streamlit frontend (calls FastAPI)
+│       └── app_dashboard.py              # Streamlit evaluation dashboard
+│
 ├── scripts/
-│ └── test_e2e.py # End‑to‑end smoke test script
-└── infra/ # (Placeholder for future Docker Compose)
+│   ├── test_e2e.py                       # End-to-end smoke test
+│   ├── run_evaluation.py                 # Runs RAGAS evaluation for all modes
+│   └── start_worker.sh                   # Starts the arq worker
+│
+├── tests/
+│   ├── unit/                             # Unit tests
+│   └── integration/                      # Integration tests
+│
+├── data/
+│   └── evaluation/
+│       ├── golden.jsonl                  # Golden dataset for RAGAS
+│       └── metrics.csv                   # Evaluation results
+│
+└── uploads/                              # Temporary upload directory
+    └── .gitkeep
 ```
 
 ---
 
-## 🚀 Installation
+## 🚀 Installation (Manual – Without Docker)
+
+If you prefer to run without Docker:
 
 **1. Clone the repository**
 ```bash
@@ -71,74 +159,84 @@ cd rag-knowledge-assistant
 ```
 
 **2. Set up a virtual environment**
-
-``` bash
+```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
-**3. Install pip-tools and sync dependencies**
 
+**3. Install pip-tools and sync dependencies**
 ```bash
 pip install pip-tools
 pip-sync requirements.lock
 ```
-To update dependencies after editing requirements.in:
 
+To update dependencies after editing requirements.in:
 ```bash
 pip-compile --generate-hashes -o requirements.lock requirements.in
 pip-sync requirements.lock
 ```
-**4. Configure environment variables **
 
-``` bash
+**4. Configure environment variables**
+```bash
 cp .env.example .env
-Edit .env with your PostgreSQL, Qdrant, and LangSmith credentials.
+# Edit .env with your PostgreSQL, Qdrant, and LangSmith credentials.
 ```
 
-**5. Start backing services (PostgreSQL & Qdrant)**
-You can run them manually or use Docker (recommended):
-
+**5. Start backing services**
 ```bash
 docker run -d --name qdrant -p 6333:6333 qdrant/qdrant
 docker run -d --name postgres -p 5432:5432 -e POSTGRES_USER=raglab -e POSTGRES_PASSWORD=raglab -e POSTGRES_DB=rag_metadata postgres:15
+docker run -d --name redis -p 6379:6379 redis:7
+docker run -d --name ollama -p 11434:11434 ollama/ollama
+ollama pull llama3.1:8b
 ```
+
+**6. Start the API and worker**
+```bash
+uvicorn src.api.main:app --reload &
+arq src.ingestion.worker.WorkerSettings &
+```
+
+**7. Start the UI**
+```bash
+streamlit run src/ui/app.py
+```
+
 ---
 
 ## 🧪 Usage
 
-**1. Populate the database with sample data**
+### 1. Upload a Document
+1. Launch the Streamlit application at `http://localhost:8501`
+2. In the sidebar, click **Choose a file**
+3. Upload one of the supported document formats:
+   - PDF (`.pdf`)
+   - Microsoft Word (`.docx`)
+   - HTML (`.html`)
+   - Plain Text (`.txt`)
+4. Click **Process Document**
+5. The application will display the indexing progress in real time:
+   - **Queued** → **Processing** → **Done**
+6. Once processing is complete, the total number of indexed chunks will be shown.
 
-```bash
-python scripts/test_e2e.py
-```
-This ingests a sample knowledge base (space telescope facts) into both Qdrant and PostgreSQL, then runs a test query to verify the pipeline.
+### 2. Ask Questions
+1. Enter your question in the chat input at the bottom of the page.
+2. Press **Enter**.
+3. The application will:
+   - Retrieve the most relevant document chunks.
+   - Generate an answer using the retrieved context.
+   - Display the answer together with clickable source IDs for reference.
 
-**2. Launch the Streamlit UI**
+### 3. Choose a Retrieval Strategy
 
-```bash
-streamlit run app.py
-Open http://localhost:8501 in your browser.
-```
+> **Note:** Retrieval mode selection is currently configured through the backend. A sidebar selector will be available in a future release.
 
-**3. Select a retrieval mode**
-
-In the sidebar, choose between:
-
-- Hybrid – Dense + Sparse with RRF (default, balanced).
-
-- HyDE – Generates a hypothetical document to improve semantic retrieval.
-
-- Multi-Query – Generates 3 query variants, retrieves for each, and fuses results with RRF.
-
-- Reranked – Retrieves 50 candidates with hybrid, then re‑ranks with a cross‑encoder for highest precision.
-
-Type your question and click Submit. The UI will display:
-
-- The LLM’s answer with citations.
-
-- The source document IDs used.
-
-An expandable debug panel showing the retrieved chunks and their scores.
+| Strategy | Description |
+|----------|-------------|
+| **Hybrid** *(Default)* | Combines dense and sparse retrieval using Reciprocal Rank Fusion (RRF). |
+| **HyDE** | Generates a hypothetical document from the query before retrieval to improve semantic matching. |
+| **Multi-Query** | Creates multiple query variations and merges the results using RRF. |
+| **Reranked** | Retrieves candidate documents and reranks them using a cross-encoder for improved relevance. |
 
 ---
 
@@ -152,31 +250,58 @@ An expandable debug panel showing the retrieved chunks and their scores.
 6. **Generation** – Ollama (llama3.1:8b) generates the final answer with cited sources.
 
 ---
+## 📊 RAGAS Evaluation
 
-## 📊 Observability
+The retrieval strategies were evaluated using the **RAGAS** framework on the project's golden evaluation dataset.
+### Metrics
 
-All retrieval and generation steps are traced via **LangSmith**. Once your API key is set in `.env`, you can view traces in the LangSmith dashboard to debug, monitor latency, and evaluate retrieval quality.
+| Metric | Description |
+|---------|-------------|
+| **Faithfulness** | Measures whether the generated answer is supported by the retrieved context. |
+| **Answer Relevancy** | Measures how well the answer addresses the user's question. |
+| **Context Precision** | Measures how much of the retrieved context is actually useful. |
+| **Context Recall** | Measures whether the retriever found all necessary supporting information. |
+
+### Results
+
+| Retrieval Strategy | Faithfulness  | Answer Relevancy  | Context Precision  | Context Recall  |
+|--------------------|---------------:|-------------------:|--------------------:|-----------------:|
+| **Hybrid** *(Default)* | **0.90** | 0.346 | **0.90** | **0.90** |
+| **HyDE** | 0.80 | 0.346 | 0.90 | **0.90** |
+| **Multi-Query** | 0.80 | 0.346 | 0.80 | **0.90** |
+| **Reranked** | **0.90** | 0.346 | **0.90** | **0.90** |
+
+### Reproducing the Benchmark
+
+```bash
+python scripts/run_evaluation.py
+```
+
+The generated metrics are saved to:
+
+```
+data/evaluation/metrics.csv
+```
 
 ---
 
 ## 🧪 Testing
-Run the full test suite (unit + integration):
 
+Run the full test suite (unit + integration):
 ```bash
 pytest tests/
 ```
+
 Run only unit tests:
-
-
 ```bash
 pytest tests/unit/
 ```
+
 Run the end‑to‑end smoke test:
-
-
 ```bash
 python scripts/test_e2e.py
 ```
+
 ---
 
 ## 🖥️ Backend API (FastAPI)
@@ -204,7 +329,7 @@ POST /api/v1/query
 }
 ```
 
-**Response:
+**Response:**
 ```json
 {
     "answer": "The James Webb Space Telescope was launched on December 25, 2021.",
@@ -216,13 +341,12 @@ POST /api/v1/query
 ```
 
 ### Ingestion Endpoint
-**Request:***
 
+**Request:**
 ```bash
 curl -X POST http://localhost:8000/api/v1/ingest \
     -F "file=@document.pdf" \
     -F 'metadata={"category":"research"}'
-
 ```
 
 **Response:**
@@ -234,20 +358,21 @@ curl -X POST http://localhost:8000/api/v1/ingest \
 ```
 
 ### Job Status Endpoint
-**Request:**
 
+**Request:**
 ```bash
 GET /api/v1/job/a1b2c3d4-...
-Response (Processing):
 ```
+
+**Response (Processing):**
 ```json
 {
     "status": "processing",
     "result": null
 }
 ```
-**Response:***
 
+**Response (Done):**
 ```json
 {
     "status": "done",
@@ -258,8 +383,11 @@ Response (Processing):
     }
 }
 ```
+
 ---
+
 ## ⚙️ Async Ingestion (arq + Redis)
+
 Document ingestion runs in the background to avoid blocking the API.
 
 ### Start the Worker
@@ -267,7 +395,7 @@ Document ingestion runs in the background to avoid blocking the API.
 # Make the script executable
 chmod +x scripts/start_worker.sh
 
-# Start the worker
+# Run the worker
 ./scripts/start_worker.sh
 
 # Or run directly
@@ -278,61 +406,65 @@ arq src.ingestion.worker.WorkerSettings
 
 | Setting | Value | Description |
 |---------|-------|-------------|
-| job_timeout | 1800s (30 min) | Max time per ingestion job. |
-| max_jobs | 10 | Concurrent jobs per worker. |
-| max_tries | 3 | Retry failed jobs up to 3 times. |
-
+| `job_timeout` | 1800s (30 min) | Max time per ingestion job. |
+| `max_jobs` | 10 | Concurrent jobs per worker. |
+| `max_tries` | 3 | Retry failed jobs up to 3 times. |
 
 ### How It Works
-1. User uploads a document → API generates a job_id and enqueues the task.
-
+1. User uploads a document → API generates a `job_id` and enqueues the task.
 2. Worker picks up the job → extracts text, chunks, embeds, and indexes.
-
 3. Status is updated in Redis → frontend can poll for completion.
-
 4. Document is now searchable → can be retrieved via the query endpoint.
+
 ---
 
 ## 📈 Monitoring & Debugging
 
-FastAPI Docs – Visit http://localhost:8000/docs for interactive API documentation.
-
-LangSmith – View traces at https://smith.langchain.com/.
-
-Redis – Inspect job status with redis-cli GET job:status:{job_id}.
-
-Logs – Worker logs appear in the terminal where start_worker.sh is running.
+- **FastAPI Docs** – Visit http://localhost:8000/docs for interactive API documentation.
+- **LangSmith** – View traces at https://smith.langchain.com/.
+- **Redis** – Inspect job status with `redis-cli GET job:status:{job_id}`.
+- **Logs** – Worker logs appear in the terminal where `arq` is running.
 
 ---
 
 ## 🔧 Troubleshooting
-| Issue | Likely Cause | Fix |
-|-------|--------------|-----|
-| ConnectionError to backend | FastAPI not running | Run `python -m src.api.main` |
-| Worker not processing jobs | Redis not running | Start Redis: `docker run -d -p 6379:6379 redis` |
-| Job stuck in queued | Worker not started | Run `./scripts/start_worker.sh` |
-| FileNotFoundError in worker | Upload path incorrect | Check the `uploads/` directory exists. |
+
+| Issue | Possible Cause | Solution |
+|-------|----------------|----------|
+| **Unable to connect to the backend (`ConnectionError`)** | The FastAPI server is not running. | Start the API server: `uvicorn src.api.main:app --reload` |
+| **Worker is not processing jobs** | Redis is not running. | Start Redis: `docker run -d -p 6379:6379 redis` |
+| **Job remains in `queued` status** | The ARQ worker has not been started. | Run the worker: `arq src.ingestion.worker.WorkerSettings` |
+| **`FileNotFoundError` in the worker** | The upload directory is missing or incorrectly configured. | Ensure the `uploads/` directory exists and is accessible. |
+| **Qdrant version mismatch warning** | The Qdrant client and server versions differ. | This warning is generally safe to ignore, or update the client/server so their versions match. |
+| **UI cannot connect to the API** | `BACKEND_URL` is configured incorrectly. | Set `BACKEND_URL=http://api:8000` when using Docker Compose, then restart the services. |
 
 ---
 
-## Test
-test the full ingestion flow:
+## ✅ Why This System Is Production‑Ready
 
-```bash
-# 1. Start Redis
-docker run -d -p 6379:6379 redis
+| Aspect | Implementation |
+| :--- | :--- |
+| **Data Persistence** | Qdrant, PostgreSQL, and Redis data persist across container restarts via Docker volumes. |
+| **Async Ingestion** | Documents are processed in the background using arq + Redis – no blocking of the API or UI. |
+| **Deduplication** | Exact‑hash deduplication prevents duplicate chunks (SHA‑256 stored in Redis). |
+| **Quality Scoring** | Rule‑based scoring filters low‑quality chunks before indexing. |
+| **Hybrid Retrieval** | Combines dense (Qdrant) and sparse (PostgreSQL FTS) search with RRF for high recall. |
+| **Observability** | Full traces via LangSmith, API docs via FastAPI, and Redis job monitoring. |
+| **One‑Command Deployment** | Docker Compose starts all services with a single command. |
+| **Evaluation Framework** | RAGAS metrics (faithfulness, answer relevancy, context precision, recall) measure system quality. |
 
-# 2. Start the worker
-arq src.ingestion.worker.WorkerSettings
-
-# 3. In another terminal, start FastAPI
-uvicorn src.api.main:app --reload
-
-# 4. Upload a test file
-curl -X POST http://localhost:8000/api/v1/ingest -F "file=@test.txt"
-
-# 5. Check the job status
-curl http://localhost:8000/api/v1/job/{job_id}
-
+---
 
 ## 📄 License
+
+This project is licensed under the **MIT License** – see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🤝 Support
+
+- **Issues:** Please open an issue on [GitHub](https://github.com/DangXiMi/RAG-Assistant)
+- **Documentation:** Refer to this README
+- **API Docs:** `http://localhost:8000/docs` (when running locally)
+
+---

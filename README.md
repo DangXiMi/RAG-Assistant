@@ -35,9 +35,6 @@ Frontend
 Evaluation
 - RAGAS
 
-Tracing
-- LangSmith
-
 ---
 
 ## 🚀 Quick Start (One Command)

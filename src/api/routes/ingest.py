@@ -1,5 +1,6 @@
 from pathlib import Path
 import uuid
+import os
 
 from fastapi import (
     APIRouter,
@@ -12,6 +13,9 @@ from arq import create_pool
 from arq.connections import RedisSettings
 
 router = APIRouter()
+redis_host = os.getenv("REDIS_HOST", "localhost")
+redis_port = int(os.getenv("REDIS_PORT", 6379))
+
 
 
 UPLOAD_DIR = Path("uploads")
@@ -57,7 +61,7 @@ async def ingest(
 
 
         redis = await create_pool(
-            RedisSettings()
+            RedisSettings(host=redis_host, port=redis_port)
         )
 
 

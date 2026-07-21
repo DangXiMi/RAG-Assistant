@@ -1,0 +1,18 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.lock .
+
+RUN pip install \
+    --index-url https://download.pytorch.org/whl/cpu \
+    torch==2.13.0+cpu
+
+RUN pip install --no-cache-dir --no-deps -r requirements.lock
+
+COPY src/ui/ ./ui/
+COPY src/config/ ./config/
+
+ENV PYTHONPATH=/app
+
+CMD ["streamlit", "run", "ui/app.py", "--server.port", "8501", "--server.address", "0.0.0.0"]

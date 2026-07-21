@@ -1,3 +1,5 @@
+# src/ingestion/indexer.py
+import os
 from src.config.config import CONFIG
 from typing import Dict, List
 from qdrant_client import QdrantClient
@@ -8,17 +10,20 @@ import logging
 class Indexer():
     def __init__(self, config: Dict = CONFIG):
         self.config = config
-        host = config["qdrant"]["host"]
-        if host == ":memory:":
-            self.client = QdrantClient(":memory:")
+        
+        # Read from environment variables FIRST, then fallback to config
+        host = os.getenv("QDRANT_HOST", config["qdrant"]["host"])
+        port = int(os.getenv("QDRANT_PORT", config["qdrant"]["port"]))
+        
+        # Special case for in-memory
+        if host in [":memory:", "memory"]:
+            self.client = QdrantClient(location=":memory:")
         else:
-            self.client = QdrantClient(
-                host=host,
-                port=config["qdrant"]["port"],
-            )
+            self.client = QdrantClient(host=host, port=port)
+            
         self.collection_name = config["qdrant"]["collection_name"]
         self.vector_size = config["qdrant"]["vector_size"]
-        logging.info("Loaded Qdrant client")
+        logging.info(f"Loaded Qdrant client: {host}:{port}")
 
     def ensure_collection(self):
         collection_name = self.config["qdrant"]["collection_name"]
@@ -56,6 +61,3 @@ class Indexer():
             collection_name=self.config["qdrant"]["collection_name"],
             points=points,
         )
-        
-
-        

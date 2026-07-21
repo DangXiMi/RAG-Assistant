@@ -28,6 +28,23 @@ from langchain_ollama import ChatOllama
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def ensure_postgres_table(conn):
+    """Create the chunks table if it doesn't exist."""
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS chunks (
+            id UUID PRIMARY KEY,
+            text TEXT NOT NULL,
+            metadata JSONB,
+            tsv TSVECTOR GENERATED ALWAYS AS (
+                setweight(to_tsvector('english', coalesce(text, '')), 'A')
+            ) STORED
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON chunks USING GIN (tsv);")
+    conn.commit()
+    cur.close()
+    logging.info("Ensured chunks table exists in PostgreSQL")
 
 def seed_postgres(conn, docs):
     """Insert documents into PostgreSQL with FTS."""
@@ -83,6 +100,7 @@ def load_pipeline():
         password=os.getenv("POSTGRES_PASSWORD", "raglab"),
     )
     conn.autocommit = True
+    ensure_postgres_table(conn)
 
     # 2. Embedder & Indexer (Qdrant)
     embedder = Embedder()

@@ -1,6 +1,6 @@
 from typing import Dict, Optional
 from src.config.config import CONFIG
-from src.utils.RRF import RRF
+from src.utils.helper_func import RRF
 
 from src.retrieval.hybrid_retriever import HybridRetriever
 from langchain_ollama import ChatOllama

@@ -6,9 +6,6 @@ import asyncio
 import json 
 from pathlib import Path
 from typing import Any
-from pypdf import PdfReader
-from docx import Document
-from bs4 import BeautifulSoup
 
 from arq import create_pool
 from arq.connections import RedisSettings
@@ -21,37 +18,27 @@ from src.ingestion.data_pipeline import seed_postgres
 
 import psycopg2
 
-# Initialize embedder once (reused across jobs)
-embedder = Embedder()
+from src.utils.helper_func import extract_text
 
-# Extract text based on file extension
-def extract_text(file_path: Path) -> str:
-    ext = file_path.suffix.lower()
-    if ext == ".pdf":
-        reader = PdfReader(file_path)
-        return "\n".join([page.extract_text() for page in reader.pages])
-    elif ext == ".docx":
-        doc = Document(file_path)
-        return "\n".join([p.text for p in doc.paragraphs])
-    elif ext == ".html" or ext == ".htm":
-        with open(file_path, "r", encoding="utf-8") as f:
-            soup = BeautifulSoup(f, "html.parser")
-            return soup.get_text()
-    else:
-        # Assume plain text
-        return file_path.read_text(encoding="utf-8")
+from src.ingestion.deduplicated import Deduplicator
+
+
+embedder = Embedder()
+redis_host = os.getenv("REDIS_HOST", "localhost")
+redis_port = int(os.getenv("REDIS_PORT", 6379))
 
 
 async def update_job_status(
     job_id: str,
     status: dict[str, Any],
+    redis,
 ):
-    redis = await create_pool(RedisSettings())
+    #redis = await create_pool(RedisSettings())
     await redis.set(
         f"job:status:{job_id}",
         json.dumps(status),
     )
-    await redis.close()
+    #await redis.close()
 
 
 async def ingest_document(
@@ -60,6 +47,7 @@ async def ingest_document(
     metadata: dict[str, Any],
     job_id: str,
 ) -> dict[str, Any]:
+    redis = await create_pool(RedisSettings(host=redis_host, port=redis_port))
 
     await update_job_status(
         job_id,
@@ -67,6 +55,7 @@ async def ingest_document(
             "status": "processing",
             "result": None,
         },
+        redis,
     )
 
     try:
@@ -77,15 +66,26 @@ async def ingest_document(
                 f"File not found: {file_path}"
             )
 
-        # 1. Extract text (for now, simple text extraction)
+        # 1. Extract text
         text = extract_text(path)
 
         # 2. Chunk the text
         chunks = chunk_text(text, metadata=metadata)
         
 
-        # 3. Extract chunk texts for embedding
-        chunk_texts = [c.text for c in chunks]
+        # 3. Extract chunk texts and check deduplicate for embedding
+        dedup = Deduplicator(redis)
+        filtered_chunks = []
+        chunk_texts = []
+
+        for chunk in chunks:
+            if dedup.enabled:
+                is_new = await dedup.add_if_new(chunk.text)
+                if not is_new:
+                    print(f"Duplicate skipped: {chunk.text[:50]}...")
+                    continue
+            filtered_chunks.append(chunk)
+            chunk_texts.append(chunk.text)
 
         # 4. Embed all chunks
         embeddings = embedder.embed(chunk_texts)
@@ -95,6 +95,7 @@ async def ingest_document(
         indexer.ensure_collection()
         indexer.index(chunks, embeddings)
         
+        # 6. Index into PostgreSQL (sparse)
         conn = psycopg2.connect(
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", "5432"),
@@ -117,7 +118,9 @@ async def ingest_document(
                 "status": "done",
                 "result": result,
             },
+            redis,
         )
+        await redis.close()
 
         return result
 
@@ -130,13 +133,14 @@ async def ingest_document(
                     "error": str(e)
                 },
             },
+            redis,
         )
         raise
 
 
 class WorkerSettings:
     functions = [ingest_document]
-    redis_settings = RedisSettings()
+    redis_settings = RedisSettings(host=redis_host, port=redis_port)
     job_timeout = 60 * 30  # 30 minutes
     max_jobs = 10
     max_tries = 3

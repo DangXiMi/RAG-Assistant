@@ -2,7 +2,7 @@ from src.retrieval.dense_retriever import DenseRetriever
 from src.retrieval.sparse_retriever import SparseRetriever
 from typing import List, Dict, Optional
 from src.config.config import CONFIG
-from src.utils.RRF import RRF
+from src.utils.helper_func import RRF
 
 import logging
 

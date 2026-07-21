@@ -1,5 +1,5 @@
 from fastapi import (APIRouter, UploadFile, File, HTTPException, Request)
-from src.api.dependencies import QueryResponse, QueryRequest
+from src.api.models import QueryResponse, QueryRequest
 
 router = APIRouter() 
 

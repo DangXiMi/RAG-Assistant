@@ -9,7 +9,7 @@ embedding:
   device: "auto"  # auto, cpu, cuda
 
 qdrant:
-  host: ":memory:" 
+  host: "localhost" 
   port: 6333
   collection_name: "rag_documents"
   vector_size: 384  
@@ -63,3 +63,7 @@ redis:
   host: "localhost"
   port: 6379
   db: 0
+
+dedup:
+  enabled: true
+  redis_ttl: 2592000

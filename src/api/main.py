@@ -8,8 +8,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 import uvicorn
 
-from src.api.dependencies import QueryRequest, QueryResponse
-
 from src.ingestion.data_pipeline import load_pipeline
 
 from src.api.routes import ingest, status, query

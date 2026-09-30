@@ -204,52 +204,6 @@ streamlit run src/ui/app.py
 
 ---
 
-## 🎬 Running the Demo
-
-The fastest path to a working demo. Requires Qdrant, PostgreSQL and Redis
-running (`docker compose up -d qdrant postgres redis`) and Ollama with
-`llama3.1:8b` pulled.
-
-```bash
-# Terminal 1 — backend API
-uvicorn src.api.main:app --host 127.0.0.1 --port 8010
-
-# Terminal 2 — ingestion worker
-arq src.ingestion.worker.WorkerSettings
-
-# Terminal 3 — build and load the demo corpus
-python scripts/seed_demo_corpus.py
-
-# Terminal 4 — the UI
-BACKEND_URL=http://127.0.0.1:8010 streamlit run src/ui/app.py
-```
-
-Then open `http://localhost:8501` and ask **"What is the refund policy?"**
-
-`seed_demo_corpus.py` creates eight documents in `data/demo_documents/` — one per
-supported format, including an Excel workbook with two sheets, a Word document
-with a real table, a two-page PDF and a scanned image — clears both stores, and
-ingests them through the API. The documents share a consistent refund window, so
-answers can be cross-checked between formats.
-
-### Verifying the demo without a browser
-
-```bash
-python scripts/smoke_test_ui.py
-```
-
-Runs the Streamlit app headlessly, drives the example question through the chat
-and asserts that an answer with a source filename is rendered.
-
-```bash
-python scripts/measure_answers.py check
-```
-
-Checks that answers contain the facts the demo documents state, and reports how
-many of the expected facts were present.
-
----
-
 ## 🧪 Usage
 
 ![Streamlit interface](assets/demo1.png)

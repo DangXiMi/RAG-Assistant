@@ -20,3 +20,7 @@ venv/
 
 .continue/
 uploads/
+AGENTS.md
+docs/
+# Local HuggingFace model cache (set via HF_HOME); 300+ MB, never commit
+.hf-cache/

@@ -14,3 +14,25 @@ SEPARATORS = CONFIG["chunker"]["separator"]
 MODEL_NAME = CONFIG["embedding"]["model_name"]
 BATCH_SIZE = CONFIG["embedding"]["batch_size"]
 DEVICE = CONFIG["embedding"]["device"]
+
+# Ingestion options. Defaults keep older configs working.
+_INGESTION = CONFIG.get("ingestion", {}) or {}
+_OCR = _INGESTION.get("ocr", {}) or {}
+_TABLES = _INGESTION.get("tables", {}) or {}
+
+OCR_ENABLED = _OCR.get("enabled", True)
+OCR_LANGUAGE = _OCR.get("language", "eng")
+OCR_DPI = _OCR.get("dpi", 300)
+OCR_MIN_TEXT_CHARS = _OCR.get("min_text_chars", 40)
+EXTRACT_TABLES = _TABLES.get("extract", True)
+
+
+def ingestion_options() -> dict:
+    """Ingestion settings in the keyword form `load_document` expects."""
+    return {
+        "ocr": OCR_ENABLED,
+        "ocr_language": OCR_LANGUAGE,
+        "ocr_dpi": OCR_DPI,
+        "min_text_chars": OCR_MIN_TEXT_CHARS,
+        "extract_tables": EXTRACT_TABLES,
+    }

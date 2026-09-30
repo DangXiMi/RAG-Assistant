@@ -1,3 +1,16 @@
+ingestion:
+  # OCR for images and scanned PDF pages (Tesseract via pytesseract).
+  ocr:
+    enabled: true
+    language: "eng"          # Tesseract language code(s), e.g. "eng" or "eng+vie"
+    dpi: 300                 # rasterization resolution for scanned PDF pages
+    # A PDF page with fewer non-whitespace characters than this is treated as
+    # scanned and sent to OCR.
+    min_text_chars: 40
+  # Tables are rendered as Markdown so row/column structure stays retrievable.
+  tables:
+    extract: true
+
 chunker:
   chunk_size: 512
   overlap: 50

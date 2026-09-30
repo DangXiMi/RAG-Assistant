@@ -1,8 +1,5 @@
 from pathlib import Path
-from typing import Any
-from pypdf import PdfReader
-from docx import Document
-from bs4 import BeautifulSoup
+from typing import Any, Optional
 
 def RRF(top_k, rrf_k, retrievers):
     fused_docs = {}
@@ -29,18 +26,24 @@ def RRF(top_k, rrf_k, retrievers):
 
     return results[:top_k]
 
+def load_pages(file_path: Path, metadata: Optional[dict] = None, **options) -> list:
+    """Load a document into ordered `LoadedPage` units via the loader registry.
+
+    This is the page-aware entry point used by the ingestion worker: it keeps
+    page and sheet boundaries so chunks can be cited accurately.
+    """
+    from src.config.config import ingestion_options
+    from src.ingestion.loaders import load_document
+
+    merged = {**ingestion_options(), **options}
+    return load_document(file_path, metadata, **merged)
+
+
 def extract_text(file_path: Path) -> str:
-    ext = file_path.suffix.lower()
-    if ext == ".pdf":
-        reader = PdfReader(file_path)
-        return "\n".join([page.extract_text() for page in reader.pages])
-    elif ext == ".docx":
-        doc = Document(file_path)
-        return "\n".join([p.text for p in doc.paragraphs])
-    elif ext == ".html" or ext == ".htm":
-        with open(file_path, "r", encoding="utf-8") as f:
-            soup = BeautifulSoup(f, "html.parser")
-            return soup.get_text()
-    else:
-        # Assume plain text
-        return file_path.read_text(encoding="utf-8")
+    """Flatten a document to a single string.
+
+    Retained for backward compatibility. Prefer `load_pages`, which preserves
+    page and sheet metadata for citations.
+    """
+    pages = load_pages(file_path)
+    return "\n\n".join(page.text for page in pages if page.text)

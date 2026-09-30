@@ -25,3 +25,19 @@ pyarrow==17.0.0
 python-docx==1.2.0
 beautifulsoup4==4.15.0
 pypdf==6.14.2
+
+# --- Multi-format ingestion (Sprint 1) ---
+# PDF text, table extraction and page rasterization for scanned-page OCR.
+# Replaces the need for a separate pdf2image/Poppler install.
+pymupdf>=1.24
+# Excel .xlsx / .xlsm worksheet reading.
+openpyxl==3.1.5
+# Python wrapper for the Tesseract OCR engine.
+# NOTE: pytesseract also requires the Tesseract *binary* on the host:
+#   Windows : winget install UB-Mannheim.TesseractOCR
+#   Debian  : apt-get install tesseract-ocr
+#   macOS   : brew install tesseract
+# If it is installed outside PATH, set TESSERACT_CMD to the executable path.
+pytesseract==0.3.13
+# Image decoding for OCR input (also pulled in by PyMuPDF/Pillow users).
+pillow>=10.0.0

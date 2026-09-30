@@ -1,13 +1,24 @@
 import os
+import sys
 import time
+from pathlib import Path
 import streamlit as st
 import requests
+
+# Allow the UI to run as `streamlit run src/ui/app.py` from the repo root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+# Single source of truth for accepted upload types, shared with the backend.
+from src.ingestion.loaders import supported_extension_list  # noqa: E402
 
 # --- Configuration & Constants ---
 BASE_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 QUERY_URL = f"{BASE_URL}/api/v1/query"
 INGEST_URL = f"{BASE_URL}/api/v1/ingest"
 STATUS_URL = f"{BASE_URL}/api/v1/job"
+
+# Extensions the loaders actually support (pdf, docx, xlsx, png, ...).
+SUPPORTED_TYPES = supported_extension_list()
 
 # Max limits for adaptive polling
 POLLING_TIMEOUT_SECONDS = 120
@@ -33,9 +44,13 @@ with st.sidebar:
     with st.form("upload_form", clear_on_submit=False):
         uploaded_file = st.file_uploader(
             "Choose a file",
-            type=["pdf", "docx", "html", "txt"],
+            type=SUPPORTED_TYPES,
             accept_multiple_files=False,
             key=f"uploader_{st.session_state.uploader_key}"
+        )
+        st.caption(
+            "Supported: PDF, Word, Excel, CSV, HTML, text and images "
+            "(images and scanned PDFs are read with OCR)."
         )
         submit_upload = st.form_submit_button("Process Document")
         
@@ -104,14 +119,43 @@ st.title("🤖 My RAG Assistant")
 st.markdown("Ask questions based on your uploaded documents. Powered by Hybrid Search.")
 st.markdown("---")
 
+def format_source(source) -> str:
+    """Render one source reference for display.
+
+    Accepts either the current string form (a chunk id) or the richer mapping
+    form `{"source": file, "page": n}` once the generator returns structured
+    citations, so this keeps working through that change.
+    """
+    if isinstance(source, dict):
+        name = source.get("source") or source.get("filename") or "unknown"
+        location = source.get("location") or ""
+        if not location:
+            if source.get("page") is not None:
+                location = f"p.{source['page']}"
+            elif source.get("sheet"):
+                location = f"sheet '{source['sheet']}'"
+        return f"{name} — {location}" if location else str(name)
+    return str(source)
+
+
+def render_sources(sources) -> None:
+    """Show a de-duplicated source list, preserving order."""
+    seen = []
+    for source in sources:
+        label = format_source(source)
+        if label not in seen:
+            seen.append(label)
+    for label in seen:
+        st.markdown(f"- {label}")
+
+
 # Display previous chat messages from history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
         if "sources" in msg and msg["sources"]:
             with st.expander("📚 View Sources"):
-                for source in msg["sources"]:
-                    st.markdown(f"- {source}")
+                render_sources(msg["sources"])
 
 # Chat Input field
 if user_input := st.chat_input("Ask a question about your data..."):
@@ -142,8 +186,7 @@ if user_input := st.chat_input("Ask a question about your data..."):
                     message_placeholder.markdown(answer)
                     if sources:
                         with sources_placeholder.expander("📚 View Sources"):
-                            for source in sources:
-                                st.markdown(f"- {source}")
+                            render_sources(sources)
                     
                     st.session_state.messages.append({
                         "role": "assistant", 

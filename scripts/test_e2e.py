@@ -37,57 +37,17 @@ SAMPLE_DOCS = [
 ]
 
 
-def seed_postgres(conn):
-    """Insert documents into PostgreSQL with FTS."""
-    cur = conn.cursor()
-    cur.execute("DROP TABLE IF EXISTS chunks CASCADE;")
-    cur.execute("""
-        CREATE TABLE chunks (
-            id UUID PRIMARY KEY,
-            text TEXT NOT NULL,
-            metadata JSONB,
-            tsv TSVECTOR GENERATED ALWAYS AS (
-                setweight(to_tsvector('english', coalesce(text, '')), 'A')
-            ) STORED
-        );
-    """)
-    cur.execute("CREATE INDEX IF NOT EXISTS idx_chunks_tsv ON chunks USING GIN (tsv);")
-    logger.info("Created chunks table in PostgreSQL")
-
-    for text in SAMPLE_DOCS:
-        doc_id = str(uuid.uuid4())
-        cur.execute(
-            "INSERT INTO chunks (id, text, metadata) VALUES (%s, %s, %s)",
-            (doc_id, text, Json({"source": "e2e_test"}))
-        )
-    conn.commit()
-    logger.info(f"Inserted {len(SAMPLE_DOCS)} documents into PostgreSQL")
-
-
-def seed_qdrant(indexer, embedder):
-    """Chunk, embed, and index documents into Qdrant."""
-    chunks = []
-    vectors = []
-    for text in SAMPLE_DOCS:
-        chunked = chunk_text(text, metadata={"source": "e2e_test"})
-        chunks.extend(chunked)
-    
-    logger.info(f"Created {len(chunks)} chunks from sample documents")
-    
-    # Embed all chunks
-    texts = [c.text for c in chunks]
-    vectors = embedder.embed(texts)
-    
-    # Index into Qdrant
-    indexer.ensure_collection()
-    indexer.index(chunks, vectors)
-    logger.info(f"Indexed {len(chunks)} chunks into Qdrant")
-
-
 def main():
     logger.info("=== Starting E2E Smoke Test ===")
 
-    # 1. Connect to PostgreSQL
+    # Seed both stores through the real ingestion components. The old local
+    # seeders ran DROP TABLE and minted throwaway ids, which emptied the sparse
+    # index of everything else and stopped RRF from fusing the two stores.
+    # `replace_source` only refreshes this corpus's own rows.
+    from scripts.seed_corpus_lib import DEFAULT_COLLECTION, replace_source
+
+    replace_source(SAMPLE_DOCS, source_name="e2e_test.txt", collection_name=DEFAULT_COLLECTION)
+
     conn = psycopg2.connect(
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", "5432"),
@@ -97,19 +57,17 @@ def main():
     )
     conn.autocommit = True
 
-    # 2. Seed PostgreSQL
-    seed_postgres(conn)
-
-    # 3. Initialize Embedder
     embedder = Embedder()
-    #logger.info(f"Embedder loaded: dimension={embedder.dimension}")
 
-    # 4. Initialize Indexer (Qdrant)
-    indexer = Indexer()
+    from src.config.config import CONFIG as _CONFIG
+
+    indexer = Indexer(
+        config={
+            **_CONFIG,
+            "qdrant": {**_CONFIG["qdrant"], "collection_name": DEFAULT_COLLECTION},
+        }
+    )
     logger.info(f"Qdrant collection: {indexer.collection_name}")
-
-    # 5. Seed Qdrant
-    seed_qdrant(indexer, embedder)
 
     # 6. Initialize Retrievers
     dense = DenseRetriever(embedder, indexer)

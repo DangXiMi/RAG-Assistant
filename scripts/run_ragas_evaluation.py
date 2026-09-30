@@ -19,17 +19,24 @@ from src.reranking.cross_encoder_reranker import CrossEncoderReranker
 from src.generation.generator import Generator
 from src.evaluation.ragas_evaluator import RAGASEvaluator
 from langchain_ollama import ChatOllama
-from scripts.test_e2e import SAMPLE_DOCS, seed_postgres, seed_qdrant
+from scripts.test_e2e import SAMPLE_DOCS
+from scripts.seed_corpus_lib import DEFAULT_COLLECTION, replace_source
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def load_pipeline():
-    """Load all RAG components."""
+    """Load all RAG components against the evaluation corpus."""
     logger.info("Loading RAG pipeline...")
 
-    # 1. Database connection (PostgreSQL)
+    # Seed both stores through the real ingestion components so chunk ids match
+    # between them and RRF can fuse. Only this corpus's own rows are replaced,
+    # and it writes to a dedicated collection, so an evaluation run cannot
+    # disturb the demo corpus.
+    replace_source(SAMPLE_DOCS, source_name="evaluation_corpus.txt")
+
+    # Database connection for the sparse retriever.
     conn = psycopg2.connect(
         host=os.getenv("POSTGRES_HOST", "localhost"),
         port=os.getenv("POSTGRES_PORT", "5432"),
@@ -38,14 +45,17 @@ def load_pipeline():
         password=os.getenv("POSTGRES_PASSWORD", "raglab"),
     )
     conn.autocommit = True
-    seed_postgres(conn)
 
     # 2. Embedder & Indexer (Qdrant)
     embedder = Embedder()
-    indexer = Indexer()
+    indexer = Indexer(
+        config={
+            **CONFIG,
+            "qdrant": {**CONFIG["qdrant"], "collection_name": DEFAULT_COLLECTION},
+        }
+    )
     logger.info(f"Qdrant collection: {indexer.collection_name}")
-    seed_qdrant(indexer, embedder)
-    
+
     # 3. Base Retrievers
     dense = DenseRetriever(embedder, indexer)
     sparse = SparseRetriever(db_conn=conn, config=CONFIG)

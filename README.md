@@ -314,33 +314,7 @@ measured, and it matters which corpus each one uses.
 | **Context Precision** | How much of the retrieved context is actually useful. |
 | **Context Recall** | Whether the retrieval found the necessary supporting information. |
 
-### 1. Answer quality on the demo corpus
-
-Checks that answers contain the facts the documents actually state. This is
-deterministic and does not need a judge model, so it is the cheapest regression
-check and the one that matters most for the demo.
-
-```bash
-python scripts/seed_demo_corpus.py      # load the demo corpus first
-python scripts/measure_answers.py baseline
-```
-
-Result on the demo questions: **8/8 answered with the expected fact.**
-
-Notably this includes the assignment's own example question. Before the
-generation-prompt fix recorded below, *"What is the refund policy?"* answered
-only *"We want you to be completely satisfied with your purchase"* and omitted
-the 30-day window that was present in the retrieved context. The prompt now
-instructs the model to lead with specific facts, which took the set from
-**7/8 to 8/8**. Per-question output is saved to
-`data/evaluation/answer_quality_<label>.json`.
-
-A near-duplicate collapsing step was also tried and **removed**: an A/B run
-holding the prompt constant scored 5/5 with and 5/5 without it, so it added code
-without measurable benefit. Measured word-overlap between the retrieved chunks
-was only 0.19-0.36, meaning they were complementary rather than redundant.
-
-### 2. RAGAS scores
+### RAGAS scores
 
 RAGAS uses an LLM as a judge, so it is slower and its numbers depend on which
 judge model is installed. **The judge model is configurable** under

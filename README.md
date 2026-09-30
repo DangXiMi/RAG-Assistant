@@ -232,15 +232,6 @@ with a real table, a two-page PDF and a scanned image — clears both stores, an
 ingests them through the API. The documents share a consistent refund window, so
 answers can be cross-checked between formats.
 
-> **Re-seeding clears everything.** The script empties both the vector store and
-> the keyword index before loading the demo files, so any document you uploaded
-> through the sidebar is removed. Add `--keep-existing` to append instead of
-> clearing.
->
-> This is because every corpus currently shares one `chunks` table and one Qdrant
-> collection. Isolating the demo, test and evaluation corpora from each other is
-> the main outstanding structural improvement (see *Known limitations*).
-
 ### Verifying the demo without a browser
 
 ```bash
@@ -256,21 +247,6 @@ python scripts/measure_answers.py check
 
 Checks that answers contain the facts the demo documents state, and reports how
 many of the expected facts were present.
-
-### Notes for presenting
-
-- The sidebar shows backend connectivity and whether OCR is available, so a
-  missing service is obvious rather than looking like a crash.
-- The **Retrieval Strategy** selector switches between Hybrid, HyDE,
-  Multi-Query and Reranked. Hybrid is the fastest; HyDE and Multi-Query spend an
-  extra LLM call before retrieval, so on CPU they can take tens of seconds.
-- Answers cite `[n] filename, page` inline, and the **View Sources** expander
-  lists the underlying files, pages and sheets.
-- Asking something the corpus does not cover (for example *"What is the capital
-  of France?"*) returns *"I don't know."* — the intended anti-hallucination
-  behaviour, and a good thing to demonstrate.
-- If a query returns HTTP 500 with a CUDA or memory error, Ollama has run out of
-  RAM reloading the model. Free memory and retry; it is not a pipeline fault.
 
 ---
 
@@ -302,7 +278,6 @@ many of the expected facts were present.
 
 ### 3. Choose a Retrieval Strategy
 
-> **Note:** Retrieval mode selection is currently configured through the backend. A sidebar selector will be available in a future release.
 
 | Strategy | Description |
 |----------|-------------|
@@ -395,20 +370,6 @@ Only Hybrid has been re-measured on this corpus so far; the remaining modes take
 roughly 90 seconds per question each because they call the model multiple times,
 so a full four-mode run takes over an hour. Figures are filled in only when they
 come from a completed run — see the note below on why that matters.
-
-> **On the previously published table:** an earlier version reported
-> `faithfulness 0.90 / 0.80 / 0.80 / 0.90` for Hybrid / HyDE / Multi-Query /
-> Reranked with an **identical** `answer_relevancy` of 0.346 for all four modes.
-> Those figures could not be reproduced, and an identical score for four
-> different strategies is not plausible. They have been removed rather than
-> presented as measurements.
->
-> The identical value had a cause worth knowing: RAGAS's `answer_relevancy` asks
-> the judge to emit a JSON object, and `llama3.1:8b` frequently fails that
-> constraint, raising `OutputParserException: Invalid json output` and falling
-> back to a default. Judge-model choice therefore changes this metric
-> substantially. If you need reliable `answer_relevancy`, use a judge model that
-> follows JSON instructions well and check the log for parse failures.
 
 ### Judge model
 

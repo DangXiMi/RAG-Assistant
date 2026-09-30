@@ -252,6 +252,8 @@ many of the expected facts were present.
 
 ## 🧪 Usage
 
+![Streamlit interface](assets/demo1.png)
+
 ### 1. Upload a Document
 1. Launch the Streamlit application at `http://localhost:8501`
 2. In the sidebar, click **Choose a file**
@@ -357,26 +359,23 @@ per-question score to `data/evaluation/per_sample.csv`. The script prints the
 three lowest-scoring questions per metric, so a weak average can be traced to
 the questions that caused it.
 
-Measured on the demo corpus (10 questions, `llama3.1:8b` as judge):
+Available options:
 
-| Retrieval Strategy | Faithfulness | Answer Relevancy | Context Precision | Context Recall |
-|---|---:|---:|---:|---:|
-| **Hybrid** *(default)* | 0.675 | 0.677 | 0.967 | 0.608 |
-| HyDE | *pending* | *pending* | *pending* | *pending* |
-| Multi-Query | *pending* | *pending* | *pending* | *pending* |
-| Reranked | *pending* | *pending* | *pending* | *pending* |
+| Flag | Purpose |
+|---|---|
+| `--golden PATH` | Golden `.jsonl` to evaluate against. |
+| `--no-seed` | Evaluate the corpus already indexed instead of loading the built-in documents. |
+| `--collection NAME` | Qdrant collection to read. Must be the collection the corpus was written to. |
+| `--modes a,b` | Restrict to a subset of retrieval modes. |
+| `--retries N` | Retry a failed mode. Ollama intermittently fails under memory pressure and succeeds on a retry. |
 
-Only Hybrid has been re-measured on this corpus so far; the remaining modes take
-roughly 90 seconds per question each because they call the model multiple times,
-so a full four-mode run takes over an hour. Figures are filled in only when they
-come from a completed run — see the note below on why that matters.
+The judge model must be present in `ollama list`. Using the same model to
+generate and judge inflates faithfulness.
 
-### Judge model
-
-RAGAS uses an LLM as a judge, so scores depend on the model you have installed.
-The judge is configured under `evaluation.judge_model` and must exist in
-`ollama list`. Note that using the same model to generate and judge inflates
-faithfulness; a different judge is preferable if you have one installed.
+`answer_relevancy` requires the judge to emit JSON. `llama3.1:8b` frequently
+violates that constraint and raises `OutputParserException: Invalid json
+output`, in which case the metric falls back to a default. Check the run log for
+parse failures before quoting this metric.
 
 ### Measuring latency
 

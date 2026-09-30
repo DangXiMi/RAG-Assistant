@@ -70,6 +70,12 @@ class Generator:
         brackets, for example [1] refund_policy.pdf, p.3. When you state a
         fact, cite where it came from using that same [n] form.
 
+        Lead with the specific facts that answer the question: numbers, dates,
+        durations, names, amounts. Do not open with a general or introductory
+        sentence when the context contains a concrete answer. If the question
+        asks about a policy or term, state the actual terms (for example the
+        number of days) rather than describing that a policy exists.
+
         If the answer cannot be found in the context,
         say "I don't know".
 

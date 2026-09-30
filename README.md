@@ -232,6 +232,15 @@ with a real table, a two-page PDF and a scanned image — clears both stores, an
 ingests them through the API. The documents share a consistent refund window, so
 answers can be cross-checked between formats.
 
+> **Re-seeding clears everything.** The script empties both the vector store and
+> the keyword index before loading the demo files, so any document you uploaded
+> through the sidebar is removed. Add `--keep-existing` to append instead of
+> clearing.
+>
+> This is because every corpus currently shares one `chunks` table and one Qdrant
+> collection. Isolating the demo, test and evaluation corpora from each other is
+> the main outstanding structural improvement (see *Known limitations*).
+
 ### Verifying the demo without a browser
 
 ```bash
@@ -240,6 +249,13 @@ python scripts/smoke_test_ui.py
 
 Runs the Streamlit app headlessly, drives the example question through the chat
 and asserts that an answer with a source filename is rendered.
+
+```bash
+python scripts/measure_answers.py check
+```
+
+Checks that answers contain the facts the demo documents state, and reports how
+many of the expected facts were present.
 
 ### Notes for presenting
 
@@ -307,44 +323,101 @@ and asserts that an answer with a source filename is rendered.
 6. **Generation** – Ollama (llama3.1:8b) generates the final answer with cited sources.
 
 ---
-## 📊 RAGAS Evaluation
+## 📊 Evaluation
 
-The retrieval strategies were evaluated using the **RAGAS** framework on the project's golden evaluation dataset.
+Answers are scored with the **RAGAS** framework. Two separate things are
+measured, and it matters which corpus each one uses.
+
 ### Metrics
 
 | Metric | Description |
 |---------|-------------|
-| **Faithfulness** | Measures whether the generated answer is supported by the retrieved context. |
-| **Answer Relevancy** | Measures how well the answer addresses the user's question. |
-| **Context Precision** | Measures how much of the retrieved context is actually useful. |
-| **Context Recall** | Measures whether the retriever found all necessary supporting information. |
+| **Faithfulness** | Whether the answer is supported by the retrieved context. |
+| **Answer Relevancy** | How well the answer addresses the user's question. |
+| **Context Precision** | How much of the retrieved context is actually useful. |
+| **Context Recall** | Whether the retrieval found the necessary supporting information. |
 
-### Results
+### 1. Answer quality on the demo corpus
 
-| Retrieval Strategy | Faithfulness  | Answer Relevancy  | Context Precision  | Context Recall  |
-|--------------------|---------------:|-------------------:|--------------------:|-----------------:|
-| **Hybrid** *(Default)* | **0.90** | 0.346 | **0.90** | **0.90** |
-| **HyDE** | 0.80 | 0.346 | 0.90 | **0.90** |
-| **Multi-Query** | 0.80 | 0.346 | 0.80 | **0.90** |
-| **Reranked** | **0.90** | 0.346 | **0.90** | **0.90** |
-
-### Reproducing the Benchmark
+Checks that answers contain the facts the documents actually state. This is
+deterministic and does not need a judge model, so it is the cheapest regression
+check and the one that matters most for the demo.
 
 ```bash
-python scripts/run_ragas_evaluation.py
+python scripts/seed_demo_corpus.py      # load the demo corpus first
+python scripts/measure_answers.py baseline
 ```
 
-The generated metrics are saved to:
+Result on the demo questions: **8/8 answered with the expected fact.**
 
+Notably this includes the assignment's own example question. Before the
+generation-prompt fix recorded below, *"What is the refund policy?"* answered
+only *"We want you to be completely satisfied with your purchase"* and omitted
+the 30-day window that was present in the retrieved context. The prompt now
+instructs the model to lead with specific facts, which took the set from
+**7/8 to 8/8**. Per-question output is saved to
+`data/evaluation/answer_quality_<label>.json`.
+
+A near-duplicate collapsing step was also tried and **removed**: an A/B run
+holding the prompt constant scored 5/5 with and 5/5 without it, so it added code
+without measurable benefit. Measured word-overlap between the retrieved chunks
+was only 0.19-0.36, meaning they were complementary rather than redundant.
+
+### 2. RAGAS scores
+
+RAGAS uses an LLM as a judge, so it is slower and its numbers depend on which
+judge model is installed. **The judge model is configurable** under
+`evaluation.judge_model` in `src/config/config.yaml` and must be a model you
+actually have (`ollama list`). The default is `llama3.1:8b`.
+
+```bash
+# Demo corpus: seed it first, then evaluate without re-seeding
+python scripts/seed_demo_corpus.py
+python scripts/run_ragas_evaluation.py \
+    --golden data/evaluation/golden_demo.jsonl --no-seed
 ```
-data/evaluation/metrics.csv      # aggregated, one row per mode
-data/evaluation/per_sample.csv   # every question, every mode
-```
 
-The script also prints the three lowest-scoring questions per metric, so a weak
-aggregate can be traced to the questions that caused it.
+Aggregated scores are written to `data/evaluation/metrics.csv` and every
+per-question score to `data/evaluation/per_sample.csv`. The script prints the
+three lowest-scoring questions per metric, so a weak average can be traced to
+the questions that caused it.
 
-### Measuring Latency
+Measured on the demo corpus (10 questions, `llama3.1:8b` as judge):
+
+| Retrieval Strategy | Faithfulness | Answer Relevancy | Context Precision | Context Recall |
+|---|---:|---:|---:|---:|
+| **Hybrid** *(default)* | 0.675 | 0.677 | 0.967 | 0.608 |
+| HyDE | *pending* | *pending* | *pending* | *pending* |
+| Multi-Query | *pending* | *pending* | *pending* | *pending* |
+| Reranked | *pending* | *pending* | *pending* | *pending* |
+
+Only Hybrid has been re-measured on this corpus so far; the remaining modes take
+roughly 90 seconds per question each because they call the model multiple times,
+so a full four-mode run takes over an hour. Figures are filled in only when they
+come from a completed run — see the note below on why that matters.
+
+> **On the previously published table:** an earlier version reported
+> `faithfulness 0.90 / 0.80 / 0.80 / 0.90` for Hybrid / HyDE / Multi-Query /
+> Reranked with an **identical** `answer_relevancy` of 0.346 for all four modes.
+> Those figures could not be reproduced, and an identical score for four
+> different strategies is not plausible. They have been removed rather than
+> presented as measurements.
+>
+> The identical value had a cause worth knowing: RAGAS's `answer_relevancy` asks
+> the judge to emit a JSON object, and `llama3.1:8b` frequently fails that
+> constraint, raising `OutputParserException: Invalid json output` and falling
+> back to a default. Judge-model choice therefore changes this metric
+> substantially. If you need reliable `answer_relevancy`, use a judge model that
+> follows JSON instructions well and check the log for parse failures.
+
+### Judge model
+
+RAGAS uses an LLM as a judge, so scores depend on the model you have installed.
+The judge is configured under `evaluation.judge_model` and must exist in
+`ollama list`. Note that using the same model to generate and judge inflates
+faithfulness; a different judge is preferable if you have one installed.
+
+### Measuring latency
 
 ```bash
 python scripts/benchmark_latency.py --runs 3
@@ -355,6 +428,20 @@ Writes per-stage p50/p95 latency and token usage to
 `data/evaluation/latency_samples.jsonl`. Run it before and after a change and
 compare the summaries — AGENTS.md requires a measured baseline for any
 optimisation.
+
+Measured baseline on this machine (CPU-only, `llama3.1:8b`):
+
+| Mode | retrieve p95 | generate p95 | total p95 |
+|---|---:|---:|---:|
+| Hybrid | 52 ms | 11,448 ms | 11,490 ms |
+| Reranked | 44 ms | 10,706 ms | 10,739 ms |
+| Multi-Query | 8,251 ms | 6,496 ms | 13,884 ms |
+| HyDE | 58,475 ms | 5,842 ms | 63,997 ms |
+
+Generation dominates: retrieval is ~50 ms while generation is ~11 s, so
+**99.5% of response time is the LLM**. HyDE is slowest overall because it spends
+an LLM call on a hypothetical document *before* retrieval, and Multi-Query
+likewise issues several rewrite calls. Use Hybrid for interactive demos.
 
 ---
 

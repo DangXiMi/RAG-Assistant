@@ -280,3 +280,37 @@ def test_filter_by_score_keeps_docs_without_a_score():
     )
 
     assert len(kept) == 1
+
+
+# --- Answer-quality instruction (measured improvement) ----------------------
+
+def test_prompt_asks_for_specific_facts_first(mock_retriever):
+    """The prompt must push for concrete facts over generalities.
+
+    Regression guard for a measured fix. On the assignment's example question
+    "What is the refund policy?", the old prompt produced only
+    "We want you to be completely satisfied with your purchase." and omitted
+    the 30-day window that was present in the retrieved context. Adding this
+    instruction took the demo question set from 7/8 to 8/8 correct answers,
+    verified by scripts/measure_answers.py before and after.
+    """
+    config = {"generator": {"model": "llama3.1:8b", "temperature": 0.0, "max_tokens": 64}}
+    gen = Generator(retriever=mock_retriever, config=config)
+
+    prompt_text = gen.prompt.messages[0].prompt.template.lower()
+
+    assert "lead with the specific facts" in prompt_text
+    assert "numbers" in prompt_text
+    assert "do not open with a general" in prompt_text
+    # The original anti-hallucination guards must survive.
+    assert "only the provided context" in prompt_text
+    assert "i don't know" in prompt_text
+
+
+def test_prompt_keeps_citation_instruction(mock_retriever):
+    config = {"generator": {"model": "llama3.1:8b", "temperature": 0.0, "max_tokens": 64}}
+    gen = Generator(retriever=mock_retriever, config=config)
+
+    prompt_text = gen.prompt.messages[0].prompt.template.lower()
+
+    assert "cite" in prompt_text

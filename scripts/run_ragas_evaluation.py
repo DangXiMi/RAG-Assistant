@@ -1,4 +1,5 @@
 # scripts/run_evaluation.py
+import argparse
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
@@ -26,15 +27,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def load_pipeline():
-    """Load all RAG components against the evaluation corpus."""
+def load_pipeline(seed_corpus: bool = True, collection_name: str | None = None):
+    """Load all RAG components against the evaluation corpus.
+
+    Args:
+        seed_corpus: Load the built-in space-domain corpus. Pass False when the
+            corpus under test is already indexed (for example the demo corpus
+            loaded by scripts/seed_demo_corpus.py).
+        collection_name: Qdrant collection to read. Defaults to the object-store
+            collection, which is what the API and worker populate. Evaluation
+            must read the same collection the corpus was written to, or retrieval
+            silently returns nothing.
+    """
     logger.info("Loading RAG pipeline...")
 
-    # Seed both stores through the real ingestion components so chunk ids match
-    # between them and RRF can fuse. Only this corpus's own rows are replaced,
-    # and it writes to a dedicated collection, so an evaluation run cannot
-    # disturb the demo corpus.
-    replace_source(SAMPLE_DOCS, source_name="evaluation_corpus.txt")
+    target_collection = collection_name or CONFIG["qdrant"]["collection_name"]
+
+    if seed_corpus:
+        # Seed both stores through the real ingestion components so chunk ids
+        # match between them and RRF can fuse. Only this corpus's own rows are
+        # replaced, so an evaluation run cannot disturb the demo corpus.
+        replace_source(
+            SAMPLE_DOCS,
+            source_name="evaluation_corpus.txt",
+            collection_name=target_collection,
+        )
+    else:
+        logger.info("Skipping corpus seeding; evaluating against the existing index")
 
     # Database connection for the sparse retriever.
     conn = psycopg2.connect(
@@ -51,7 +70,7 @@ def load_pipeline():
     indexer = Indexer(
         config={
             **CONFIG,
-            "qdrant": {**CONFIG["qdrant"], "collection_name": DEFAULT_COLLECTION},
+            "qdrant": {**CONFIG["qdrant"], "collection_name": target_collection},
         }
     )
     logger.info(f"Qdrant collection: {indexer.collection_name}")
@@ -100,24 +119,91 @@ def load_pipeline():
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Run the RAGAS evaluation across all retrieval modes."
+    )
+    parser.add_argument(
+        "--golden",
+        default=None,
+        help=(
+            "Path to a golden .jsonl file. Defaults to the config's "
+            "evaluation.golden_file (the space-domain set)."
+        ),
+    )
+    parser.add_argument(
+        "--no-seed",
+        action="store_true",
+        help=(
+            "Evaluate the corpus already indexed instead of loading the "
+            "built-in space-domain documents. Use this with --golden "
+            "data/evaluation/golden_demo.jsonl after running "
+            "scripts/seed_demo_corpus.py."
+        ),
+    )
+    parser.add_argument(
+        "--collection",
+        default=None,
+        help=(
+            "Qdrant collection to read. Defaults to the object-store collection "
+            "that the API and worker write to. Evaluation must read the same "
+            "collection the corpus lives in."
+        ),
+    )
+    parser.add_argument(
+        "--modes",
+        default="",
+        help="Comma-separated subset of modes (default: all four).",
+    )
+    parser.add_argument(
+        "--retries",
+        type=int,
+        default=2,
+        help=(
+            "Retry a failed mode this many times. Ollama intermittently fails "
+            "with a CUDA/memory error under load, which succeeds on a retry."
+        ),
+    )
+    args = parser.parse_args()
+
     logger.info("Loading pipeline...")
-    pipeline = load_pipeline()
+    pipeline = load_pipeline(
+        seed_corpus=not args.no_seed, collection_name=args.collection
+    )
     generator = pipeline["generator"]
     retrievers = pipeline["retrievers"]
 
-    evaluator = RAGASEvaluator(generator=generator)
+    if args.modes:
+        wanted = [m.strip() for m in args.modes.split(",") if m.strip()]
+        unknown = [m for m in wanted if m not in retrievers]
+        if unknown:
+            logger.error("Unknown mode(s) %s. Available: %s", unknown, list(retrievers))
+            return 2
+        retrievers = {m: retrievers[m] for m in wanted}
+
+    evaluator = RAGASEvaluator(generator=generator, dataset_path=args.golden)
+    logger.info("Golden set: %s", evaluator.data_path)
     results = {}
 
     # Evaluate ALL modes
     for mode_name, retriever in retrievers.items():
         logger.info(f"Evaluating mode: {mode_name}")
-        try:
-            metrics = evaluator.evaluate(retriever, top_k=3)
+        metrics = None
+        for attempt in range(1, max(1, args.retries) + 1):
+            try:
+                metrics = evaluator.evaluate(retriever, top_k=3)
+                break
+            except Exception as e:
+                logger.error(
+                    "❌ %s evaluation failed (attempt %d/%d): %s",
+                    mode_name,
+                    attempt,
+                    max(1, args.retries),
+                    e,
+                )
+        if metrics is not None:
             results[mode_name] = metrics
             logger.info(f"✅ {mode_name} evaluation complete.")
             logger.info(f"{mode_name} \n {metrics['aggregated']} .")
-        except Exception as e:
-            logger.error(f"❌ {mode_name} evaluation failed: {e}")
 
     # Print summary table
     print("\n" + "="*60)

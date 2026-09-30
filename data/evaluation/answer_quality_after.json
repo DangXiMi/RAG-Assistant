@@ -1,0 +1,120 @@
+[
+  {
+    "question": "What is the refund policy?",
+    "mode": "Hybrid",
+    "answer": "Standard items may be returned for a full refund within 30 days from delivery [1] refund_policy.txt, and sale items are not refundable, except where the item arrived damaged or faulty [1] refund_policy.txt. Shipping costs are non-refundable for change-of-mind returns, but if the return is due to our error, we refund the original shipping cost as well [1] refund_policy.txt.",
+    "expect": [
+      "30 days"
+    ],
+    "passed": true,
+    "contexts": 3,
+    "sources": [
+      "[1] refund_policy.txt",
+      "[2] refund_matrix.docx",
+      "[3] service_levels.xlsx, sheet 'Refunds'"
+    ]
+  },
+  {
+    "question": "How many days do I have to return a standard item?",
+    "mode": "Hybrid",
+    "answer": "30 [1] terms_and_conditions.pdf, p.1 and [2] refund_policy.txt",
+    "expect": [
+      "30"
+    ],
+    "passed": true,
+    "contexts": 3,
+    "sources": [
+      "[1] terms_and_conditions.pdf, p.1",
+      "[2] refund_policy.txt",
+      "[3] returns_faq.csv, rows 1-4"
+    ]
+  },
+  {
+    "question": "What is the shipping lead time for Europe?",
+    "mode": "Hybrid",
+    "answer": "5 business days [2]",
+    "expect": [
+      "5"
+    ],
+    "passed": true,
+    "contexts": 3,
+    "sources": [
+      "[1] service_levels.xlsx, sheet 'Shipping'",
+      "[2] terms_and_conditions.pdf, p.2",
+      "[3] terms_and_conditions.pdf, p.1"
+    ]
+  },
+  {
+    "question": "Are sale items refundable?",
+    "mode": "Hybrid",
+    "answer": "No [2], Sale item | Not refundable.",
+    "expect": [
+      "not refundable"
+    ],
+    "passed": true,
+    "contexts": 3,
+    "sources": [
+      "[1] refund_policy.txt",
+      "[2] refund_matrix.docx",
+      "[3] terms_and_conditions.pdf, p.1"
+    ]
+  },
+  {
+    "question": "When is support available?",
+    "mode": "Hybrid",
+    "answer": "Monday to Friday, 9am to 6pm CET [1] support_hours.html",
+    "expect": [
+      "monday"
+    ],
+    "passed": true,
+    "contexts": 3,
+    "sources": [
+      "[1] support_hours.html",
+      "[2] refund_policy.txt",
+      "[3] FedGame.pdf, p.11"
+    ]
+  },
+  {
+    "question": "What is the capital of France?",
+    "mode": "Hybrid",
+    "answer": "I don't know.",
+    "expect": [
+      "don't know"
+    ],
+    "passed": true,
+    "contexts": 3,
+    "sources": [
+      "[1] terms_and_conditions.pdf, p.2",
+      "[2] service_levels.xlsx, sheet 'Shipping'",
+      "[3] FedGame.pdf, p.9"
+    ]
+  },
+  {
+    "question": "What is the refund policy?",
+    "mode": "Reranked",
+    "answer": "Standard items may be returned for a full refund within 30 days from delivery [1]. Refunds are issued to the original payment method within 5 business days of us receiving the item [2]. Sale items are not refundable, except where the item arrived damaged or faulty [1]. If the return is due to our error, we refund the original shipping cost as well [1].",
+    "expect": [
+      "30 days"
+    ],
+    "passed": true,
+    "contexts": 3,
+    "sources": [
+      "[1] refund_policy.txt",
+      "[3] refund_matrix.docx"
+    ]
+  },
+  {
+    "question": "What is the refund policy?",
+    "mode": "HyDE",
+    "answer": "5 business days [1] Unused and in its original packaging within 30 days from delivery [2] Non-refundable for change-of-mind returns, but shipping costs are refunded if return is due to seller's error [2]",
+    "expect": [
+      "30 days"
+    ],
+    "passed": true,
+    "contexts": 3,
+    "sources": [
+      "[1] refund_policy.txt",
+      "[3] scanned_notice.png, p.1"
+    ]
+  }
+]

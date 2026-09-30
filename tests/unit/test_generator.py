@@ -43,7 +43,9 @@ def test_generator_initialization(generator, mock_retriever, config):
 
 
 def test_retrieve_converts_to_langchain_documents(generator, mock_retriever):
-    docs = generator.retrieve("test query", top_k=2)
+    # `retriever` is passed by keyword here for the same reason `run` does it:
+    # the @traceable wrapper resolves arguments by name.
+    docs = generator.retrieve("test query", retriever=mock_retriever, top_k=2)
     
     assert len(docs) == 2
     assert isinstance(docs[0], Document)
@@ -55,15 +57,61 @@ def test_retrieve_converts_to_langchain_documents(generator, mock_retriever):
     mock_retriever.search.assert_called_once_with(query="test query", top_k=2)
 
 
+def test_retrieve_preserves_location_metadata(generator):
+    """Item 4: `source` and `page` must survive retrieval to be citable."""
+    retriever = MagicMock()
+    retriever.search.return_value = [
+        {
+            "id": "chunk-1",
+            "text": "Refunds are processed within 30 days.",
+            "score": 0.9,
+            "metadata": {"source": "refund_policy.pdf", "page": 3, "sheet": None},
+        }
+    ]
+
+    docs = generator.retrieve("refund window", retriever, top_k=1)
+
+    assert docs[0].metadata["source"] == "refund_policy.pdf"
+    assert docs[0].metadata["page"] == 3
+    assert docs[0].metadata["score"] == 0.9
+    # The id is exposed under both established names.
+    assert docs[0].metadata["doc_id"] == "chunk-1"
+    assert docs[0].metadata["id"] == "chunk-1"
+
+
 def test_build_context_formats_correctly(generator):
     docs = [
-        Document(page_content="Content A", metadata={"doc_id": "id_a"}),
-        Document(page_content="Content B", metadata={"doc_id": "id_b"}),
+        Document(
+            page_content="Content A",
+            metadata={"doc_id": "id_a", "source": "a.pdf", "page": 3},
+        ),
+        Document(
+            page_content="Content B",
+            metadata={"doc_id": "id_b", "source": "b.xlsx", "sheet": "Costs"},
+        ),
     ]
     context = generator.build_context(docs)
-    
-    expected = "[id_a]\nContent A\n\n[id_b]\nContent B"
+
+    expected = (
+        "[1] a.pdf, p.3\nContent A\n\n"
+        "[2] b.xlsx, sheet 'Costs'\nContent B"
+    )
     assert context == expected
+
+
+def test_build_context_uses_readable_references_not_uuids(generator):
+    """The regression this change fixes: context used to be labelled by UUID."""
+    docs = [
+        Document(
+            page_content="Policy text",
+            metadata={"doc_id": "9f8c1e2a-uuid", "source": "policy.pdf", "page": 1},
+        )
+    ]
+
+    context = generator.build_context(docs)
+
+    assert "policy.pdf, p.1" in context
+    assert "9f8c1e2a-uuid" not in context
 
 
 @patch("src.generation.generator.ChatOllama")
@@ -112,27 +160,36 @@ def test_run_orchestrates_pipeline(mock_ollama_class, generator, mock_retriever)
     assert "answer" in result
     assert "sources" in result
     assert result["answer"] == "Paris is the capital."
-    assert result["sources"] == ["doc_1", "doc_2"]
+    # Both fixture chunks come from the same source with no page/sheet, so they
+    # collapse to a single citation: repeating "wiki" twice tells a reader
+    # nothing. Deduplication is deliberate.
+    assert result["sources"] == ["[1] wiki"]
+    # Structured detail is additive alongside the plain-string sources.
+    assert result["source_refs"][0]["source"] == "wiki"
+    assert result["source_refs"][0]["chunk_id"] == "doc_1"
+    assert result["answered"] is True
+    assert result["retrieved"] == 2
 
 
 @patch("src.generation.generator.ChatOllama")
 def test_run_handles_empty_retrieval(mock_ollama_class, generator, mock_retriever):
-    # Simulate empty retrieval
+    """Item 12: with no evidence, answer deterministically without the LLM."""
     mock_retriever.search.return_value = []
-    
+
     mock_model_instance = MagicMock()
-    mock_response = MagicMock()
-    mock_response.content = "I don't know."
-    mock_model_instance.invoke.return_value = mock_response
-    mock_ollama_class.return_value = mock_model_instance
+    mock_model_instance.invoke.return_value = MagicMock(content="should not be used")
     generator.model = mock_model_instance
 
     result = generator.run("What is the capital of nowhere?", top_k=2)
 
-    # The context should be empty (just ""), and the LLM should be called with empty context
-    mock_model_instance.invoke.assert_called_once()
-    assert result["answer"] == "I don't know."
+    # The LLM must NOT be consulted when there is nothing to ground on.
+    mock_model_instance.invoke.assert_not_called()
+    assert result["answered"] is False
+    assert result["retrieved"] == 0
+    assert "could not find" in result["answer"].lower()
     assert result["sources"] == []
+    assert result["contexts"] == []
+    assert result["source_refs"] == []
 
 
 @patch("src.generation.generator.ChatOllama")
@@ -152,3 +209,74 @@ def test_run_uses_default_top_k_if_not_provided(mock_ollama_class, generator, mo
 def test_build_context_with_empty_docs(generator):
     context = generator.build_context([])
     assert context == ""
+
+
+# --- Score threshold filtering (item 12) ------------------------------------
+
+def test_no_documents_returns_not_found_without_llm(mock_retriever):
+    """A threshold-disabled generator still short-circuits on empty retrieval."""
+    mock_retriever.search.return_value = []
+    config = {"generator": {"model": "llama3.1:8b", "temperature": 0.0, "max_tokens": 64}}
+    gen = Generator(retriever=mock_retriever, config=config)
+    gen.model = MagicMock()
+
+    result = gen.run("anything", top_k=3)
+
+    gen.model.invoke.assert_not_called()
+    assert result["answered"] is False
+
+
+def test_low_scores_are_filtered_out(mock_retriever):
+    """Hits below retrieval.score_threshold must not reach the LLM."""
+    config = {
+        "generator": {"model": "llama3.1:8b", "temperature": 0.0, "max_tokens": 64},
+        "retrieval": {"score_threshold": 0.5},
+    }
+    mock_retriever.search.return_value = [
+        {"id": "weak", "text": "barely related", "score": 0.01,
+         "metadata": {"source": "a.pdf", "page": 1}},
+    ]
+    gen = Generator(retriever=mock_retriever, config=config)
+    gen.model = MagicMock()
+
+    result = gen.run("question", top_k=3)
+
+    gen.model.invoke.assert_not_called()
+    assert result["answered"] is False
+    assert result["retrieved"] == 0
+
+
+def test_scores_at_or_above_threshold_pass(mock_retriever):
+    config = {
+        "generator": {"model": "llama3.1:8b", "temperature": 0.0, "max_tokens": 64},
+        "retrieval": {"score_threshold": 0.5},
+    }
+    mock_retriever.search.return_value = [
+        {"id": "strong", "text": "refund window is 30 days", "score": 0.9,
+         "metadata": {"source": "policy.pdf", "page": 2}},
+    ]
+    gen = Generator(retriever=mock_retriever, config=config)
+    gen.model = MagicMock()
+    gen.model.invoke.return_value = MagicMock(content="30 days")
+
+    result = gen.run("refund window?", top_k=3)
+
+    gen.model.invoke.assert_called_once()
+    assert result["answered"] is True
+    assert result["sources"] == ["[1] policy.pdf, p.2"]
+
+
+def test_filter_by_score_keeps_docs_without_a_score():
+    """A missing score must not silently discard otherwise valid evidence."""
+    config = {
+        "generator": {"model": "llama3.1:8b", "temperature": 0.0, "max_tokens": 64},
+        "retrieval": {"score_threshold": 0.5},
+    }
+    retriever = MagicMock()
+    gen = Generator(retriever=retriever, config=config)
+
+    kept = gen.filter_by_score(
+        [Document(page_content="x", metadata={"source": "a.pdf"})]
+    )
+
+    assert len(kept) == 1

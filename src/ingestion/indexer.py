@@ -42,7 +42,25 @@ class Indexer():
             raise ValueError(
                 "must have the same length"
             )
-        
+
+        # An empty batch is a no-op. Qdrant rejects an upsert containing no
+        # points ("Empty update request"), which used to fail an ingest job
+        # whenever every chunk had already been indexed.
+        if not chunks:
+            logging.info("No chunks to index; skipping Qdrant upsert")
+            return
+
+        # Fail early and clearly when the embedding model does not match the
+        # collection, instead of surfacing an opaque dimension error from Qdrant.
+        actual_dimension = len(vectors[0])
+        if actual_dimension != self.vector_size:
+            raise ValueError(
+                f"Embedding dimension {actual_dimension} does not match the "
+                f"Qdrant collection size {self.vector_size}. Check "
+                f"embedding.model_name and qdrant.vector_size in the config, "
+                f"and recreate the collection if the model was changed."
+            )
+
         self.ensure_collection()
 
         points = [

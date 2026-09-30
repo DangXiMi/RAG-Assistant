@@ -11,13 +11,11 @@ from typing import Any
 from arq import create_pool
 from arq.connections import RedisSettings
 
-from src.ingestion.chunker import chunk_text, chunk_pages, Chunk
+from src.ingestion.chunker import chunk_pages
 from src.ingestion.embedder import Embedder
 from src.ingestion.indexer import Indexer
 from src.config.config import CONFIG
-from src.ingestion.data_pipeline import seed_postgres
-
-import psycopg2
+from src.ingestion import sparse_store
 
 from src.utils.helper_func import load_pages
 
@@ -156,23 +154,25 @@ async def ingest_document(
         indexer.ensure_collection()
         indexer.index(filtered_chunks, embeddings)
         
-        # 6. Index into PostgreSQL (sparse)
-        conn = psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST", "localhost"),
-        port=os.getenv("POSTGRES_PORT", "5432"),
-        dbname=os.getenv("POSTGRES_DB", "rag_metadata"),
-        user=os.getenv("POSTGRES_USER", "raglab"),
-        password=os.getenv("POSTGRES_PASSWORD", "raglab"),)
+        # 6. Index into PostgreSQL (sparse / BM25)
+        #    Chunks are keyed by their own id, the same id Qdrant stores, so the
+        #    two stores share identities and RRF can fuse them. Writes are
+        #    additive: ensure_table never destroys existing rows.
+        conn = sparse_store.connect()
+        try:
+            sparse_store.ensure_table(conn)
+            sparse_store.upsert_chunks(conn, filtered_chunks)
+            sparse_total = sparse_store.count_chunks(conn)
+        finally:
+            conn.close()
 
-        conn.autocommit = True
-        seed_postgres(conn, chunk_texts)
-        
         result = {
             "file_path": str(path),
             "chunks": len(filtered_chunks),
             "chunks_extracted": len(chunks),
             "pages": len(pages),
             "ocr_units": sum(1 for p in pages if p.extraction == "ocr"),
+            "sparse_index_total": sparse_total,
             "metadata": metadata,
         }
 

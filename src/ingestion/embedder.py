@@ -18,8 +18,21 @@ class Embedder:
         
         self.batch_size = self.config["embedding"]["batch_size"]
         self.model = SentenceTransformer(self.model_name, device=self.device)
-        # self.dimension = self.model.get_embedding_dimension()
-        logging.info(f"Loaded {self.model_name} model")
+
+        # Recorded so callers can verify the embedding width matches the vector
+        # store's configured size, rather than failing confusingly at upsert time.
+        self.dimension = self.model.get_sentence_embedding_dimension()
+        if self.dimension is None:  # pragma: no cover - defensive
+            raise RuntimeError(
+                f"Could not determine embedding dimension for {self.model_name}"
+            )
+
+        logging.info(
+            "Loaded %s model (dimension=%s, device=%s)",
+            self.model_name,
+            self.dimension,
+            self.device,
+        )
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if texts is None:

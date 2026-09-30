@@ -47,7 +47,16 @@ def ensure_postgres_table(conn):
     logging.info("Ensured chunks table exists in PostgreSQL")
 
 def seed_postgres(conn, docs):
-    """Insert documents into PostgreSQL with FTS."""
+    """DEPRECATED / DEMO ONLY - do not use for ingestion.
+
+    This helper drops and recreates the `chunks` table on every call and mints
+    a throwaway `uuid4()` per row instead of using the chunk's own id, so it
+    destroys existing rows and breaks id-sharing with Qdrant.
+
+    The ingestion worker no longer calls it. Use
+    `src.ingestion.sparse_store.upsert_chunks`, which is additive and preserves
+    chunk identity. Retained only because `scripts/test_e2e.py` imports it.
+    """
     cur = conn.cursor()
     cur.execute("DROP TABLE IF EXISTS chunks CASCADE;")
     cur.execute("""

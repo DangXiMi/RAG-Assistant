@@ -263,6 +263,83 @@ def main() -> int:
         check("all formats ingested", len(ingested) == len(files),
               f"{len(ingested)}/{len(files)}")
 
+        # Items 7 + 8: the sparse index must cover every file, not just the
+        # last one ingested, and must share ids with the dense store.
+        sparse_total = None
+        for _name, result in ingested:
+            if result.get("sparse_index_total") is not None:
+                sparse_total = result["sparse_index_total"]
+        if sparse_total is None:
+            record("sparse index populated", WARN, "worker did not report a sparse total")
+        else:
+            check("sparse index survived all ingests", sparse_total >= len(ingested),
+                  f"{sparse_total} rows after ingesting {len(ingested)} files")
+
+        try:
+            import psycopg2
+
+            conn = psycopg2.connect(
+                host=os.getenv("POSTGRES_HOST", "localhost"),
+                port=os.getenv("POSTGRES_PORT", "5432"),
+                dbname=os.getenv("POSTGRES_DB", "rag_metadata"),
+                user=os.getenv("POSTGRES_USER", "raglab"),
+                password=os.getenv("POSTGRES_PASSWORD", "raglab"),
+            )
+            cur = conn.cursor()
+            cur.execute("SELECT count(*), count(DISTINCT metadata->>'source') FROM chunks")
+            rows, sources_count = cur.fetchone()
+            check("sparse index has real sources (not placeholders)",
+                  sources_count > 1,
+                  f"{rows} rows across {sources_count} distinct source(s)")
+
+            cur.execute("SELECT count(*) FROM chunks WHERE metadata->>'source' = 'test'")
+            placeholder = cur.fetchone()[0]
+            check("no hardcoded 'test' placeholder rows", placeholder == 0,
+                  f"{placeholder} placeholder row(s)")
+
+            cur.execute(
+                "SELECT count(*) FROM chunks WHERE metadata->>'source' IS NOT NULL"
+            )
+            check("sparse rows carry source metadata", cur.fetchone()[0] == rows,
+                  f"{rows} row(s) checked")
+
+            cur.close()
+            conn.close()
+        except Exception as exc:
+            record("sparse store inspection", WARN, f"{type(exc).__name__}: {exc}")
+
+        # Dense vs sparse id overlap: the precondition for RRF to fuse rather
+        # than double-count.
+        try:
+            scroll = requests.post(
+                "http://localhost:6333/collections/rag_documents/points/scroll",
+                json={"limit": 200, "with_payload": False, "with_vector": False},
+                timeout=15,
+            ).json()
+            dense_ids = {str(p["id"]) for p in scroll["result"]["points"]}
+
+            import psycopg2
+
+            conn = psycopg2.connect(
+                host=os.getenv("POSTGRES_HOST", "localhost"),
+                port=os.getenv("POSTGRES_PORT", "5432"),
+                dbname=os.getenv("POSTGRES_DB", "rag_metadata"),
+                user=os.getenv("POSTGRES_USER", "raglab"),
+                password=os.getenv("POSTGRES_PASSWORD", "raglab"),
+            )
+            cur = conn.cursor()
+            cur.execute("SELECT id::text FROM chunks")
+            sparse_ids = {row[0] for row in cur.fetchall()}
+            cur.close()
+            conn.close()
+
+            overlap = dense_ids & sparse_ids
+            check("dense and sparse stores share chunk ids", len(overlap) > 0,
+                  f"{len(overlap)} shared id(s) of {len(dense_ids)} dense / "
+                  f"{len(sparse_ids)} sparse")
+        except Exception as exc:
+            record("id overlap check", WARN, f"{type(exc).__name__}: {exc}")
+
         print()
         print("--- Ollama LLM availability ---")
         try:
@@ -289,9 +366,29 @@ def main() -> int:
             check("in-domain: answer states 30 days", "30" in text,
                   repr(text[:200]))
             check("in-domain: sources returned", len(sources) > 0, f"{len(sources)} source(s)")
-            record("source format", WARN if sources and "-" in str(sources[0]) else PASS,
-                   f"first source = {sources[0] if sources else None!r} "
-                   "(UUID means roadmap item 4 is still open)")
+
+            # Item 4: citations must name the file (and page), not a bare UUID.
+            import re as _re
+
+            uuid_like = _re.compile(
+                r"^\[?\d*\]?\s*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+                r"[0-9a-f]{4}-[0-9a-f]{12}$",
+                _re.IGNORECASE,
+            )
+            bare_uuids = [s for s in sources if uuid_like.match(str(s).strip())]
+            check("citations name a file, not a UUID", not bare_uuids,
+                  f"sources = {sources[:3]}")
+
+            refs = answer.get("source_refs") or []
+            check("structured source_refs returned", len(refs) > 0,
+                  f"{len(refs)} ref(s)")
+            if refs:
+                check("source_refs carry a filename",
+                      all(r.get("source") and r["source"] != "unknown" for r in refs),
+                      str([r.get("source") for r in refs][:4]))
+                check("source_refs carry a location",
+                      any(r.get("location") for r in refs),
+                      str([r.get("location") for r in refs][:4]))
         except Exception as exc:
             record("in-domain query", FAIL, f"{type(exc).__name__}: {exc}")
 

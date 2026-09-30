@@ -1,0 +1,72 @@
+{"stage": "retrieve", "seconds": 0.04467070000100648, "mode": "Hybrid", "question": "What is the refund window for a standard item?"}
+{"stage": "generate", "seconds": 11.581922099998337, "mode": "Hybrid", "question": "What is the refund window for a standard item?"}
+{"stage": "total", "seconds": 11.626758400001563, "mode": "Hybrid", "question": "What is the refund window for a standard item?"}
+{"stage": "retrieve", "seconds": 0.0485975999981747, "mode": "Hybrid", "question": "What is the shipping lead time for Europe?"}
+{"stage": "generate", "seconds": 1.157378099997004, "mode": "Hybrid", "question": "What is the shipping lead time for Europe?"}
+{"stage": "total", "seconds": 1.2061160000012023, "mode": "Hybrid", "question": "What is the shipping lead time for Europe?"}
+{"stage": "retrieve", "seconds": 0.03726009999809321, "mode": "Hybrid", "question": "Are sale items refundable?"}
+{"stage": "generate", "seconds": 2.2190264999953797, "mode": "Hybrid", "question": "Are sale items refundable?"}
+{"stage": "total", "seconds": 2.2564544999986538, "mode": "Hybrid", "question": "Are sale items refundable?"}
+{"stage": "retrieve", "seconds": 0.031682100001489744, "mode": "Hybrid", "question": "What is the refund window for a standard item?"}
+{"stage": "generate", "seconds": 11.04729120000411, "mode": "Hybrid", "question": "What is the refund window for a standard item?"}
+{"stage": "total", "seconds": 11.079152600002999, "mode": "Hybrid", "question": "What is the refund window for a standard item?"}
+{"stage": "retrieve", "seconds": 0.05317490000015823, "mode": "Hybrid", "question": "What is the shipping lead time for Europe?"}
+{"stage": "generate", "seconds": 1.1487538000001223, "mode": "Hybrid", "question": "What is the shipping lead time for Europe?"}
+{"stage": "total", "seconds": 1.2020756999991136, "mode": "Hybrid", "question": "What is the shipping lead time for Europe?"}
+{"stage": "retrieve", "seconds": 0.038988200001767837, "mode": "Hybrid", "question": "Are sale items refundable?"}
+{"stage": "generate", "seconds": 2.2702567000014824, "mode": "Hybrid", "question": "Are sale items refundable?"}
+{"stage": "total", "seconds": 2.309414299998025, "mode": "Hybrid", "question": "Are sale items refundable?"}
+{"stage": "retrieve", "seconds": 44.43288109999412, "mode": "HyDE", "question": "What is the refund window for a standard item?"}
+{"stage": "generate", "seconds": 5.7788564000002225, "mode": "HyDE", "question": "What is the refund window for a standard item?"}
+{"stage": "total", "seconds": 50.211900800000876, "mode": "HyDE", "question": "What is the refund window for a standard item?"}
+{"stage": "retrieve", "seconds": 57.65552120000211, "mode": "HyDE", "question": "What is the shipping lead time for Europe?"}
+{"stage": "generate", "seconds": 5.557744099998672, "mode": "HyDE", "question": "What is the shipping lead time for Europe?"}
+{"stage": "total", "seconds": 63.21342739999818, "mode": "HyDE", "question": "What is the shipping lead time for Europe?"}
+{"stage": "retrieve", "seconds": 51.35076879999542, "mode": "HyDE", "question": "Are sale items refundable?"}
+{"stage": "generate", "seconds": 5.818426700003329, "mode": "HyDE", "question": "Are sale items refundable?"}
+{"stage": "total", "seconds": 57.16935090000334, "mode": "HyDE", "question": "Are sale items refundable?"}
+{"stage": "retrieve", "seconds": 46.055230899997696, "mode": "HyDE", "question": "What is the refund window for a standard item?"}
+{"stage": "generate", "seconds": 5.850086500002362, "mode": "HyDE", "question": "What is the refund window for a standard item?"}
+{"stage": "total", "seconds": 51.90547789999982, "mode": "HyDE", "question": "What is the refund window for a standard item?"}
+{"stage": "retrieve", "seconds": 58.74844589999702, "mode": "HyDE", "question": "What is the shipping lead time for Europe?"}
+{"stage": "generate", "seconds": 5.510203999998339, "mode": "HyDE", "question": "What is the shipping lead time for Europe?"}
+{"stage": "total", "seconds": 64.25881740000477, "mode": "HyDE", "question": "What is the shipping lead time for Europe?"}
+{"stage": "retrieve", "seconds": 52.76787719999993, "mode": "HyDE", "question": "Are sale items refundable?"}
+{"stage": "generate", "seconds": 5.678112400004466, "mode": "HyDE", "question": "Are sale items refundable?"}
+{"stage": "total", "seconds": 58.44615540000086, "mode": "HyDE", "question": "Are sale items refundable?"}
+{"stage": "retrieve", "seconds": 7.954268100002082, "mode": "Multi-Query", "question": "What is the refund window for a standard item?"}
+{"stage": "generate", "seconds": 5.926375499999267, "mode": "Multi-Query", "question": "What is the refund window for a standard item?"}
+{"stage": "total", "seconds": 13.880771500000264, "mode": "Multi-Query", "question": "What is the refund window for a standard item?"}
+{"stage": "retrieve", "seconds": 8.289410699995642, "mode": "Multi-Query", "question": "What is the shipping lead time for Europe?"}
+{"stage": "generate", "seconds": 5.027591600002779, "mode": "Multi-Query", "question": "What is the shipping lead time for Europe?"}
+{"stage": "total", "seconds": 13.317149599999539, "mode": "Multi-Query", "question": "What is the shipping lead time for Europe?"}
+{"stage": "retrieve", "seconds": 6.935190999996848, "mode": "Multi-Query", "question": "Are sale items refundable?"}
+{"stage": "generate", "seconds": 6.435372200001439, "mode": "Multi-Query", "question": "Are sale items refundable?"}
+{"stage": "total", "seconds": 13.370689199997287, "mode": "Multi-Query", "question": "Are sale items refundable?"}
+{"stage": "retrieve", "seconds": 8.038432600005763, "mode": "Multi-Query", "question": "What is the refund window for a standard item?"}
+{"stage": "generate", "seconds": 5.846274399998947, "mode": "Multi-Query", "question": "What is the refund window for a standard item?"}
+{"stage": "total", "seconds": 13.884854700001597, "mode": "Multi-Query", "question": "What is the refund window for a standard item?"}
+{"stage": "retrieve", "seconds": 8.13729439999588, "mode": "Multi-Query", "question": "What is the shipping lead time for Europe?"}
+{"stage": "generate", "seconds": 5.062724399998842, "mode": "Multi-Query", "question": "What is the shipping lead time for Europe?"}
+{"stage": "total", "seconds": 13.20015930000227, "mode": "Multi-Query", "question": "What is the shipping lead time for Europe?"}
+{"stage": "retrieve", "seconds": 7.300527899998997, "mode": "Multi-Query", "question": "Are sale items refundable?"}
+{"stage": "generate", "seconds": 6.516101399996842, "mode": "Multi-Query", "question": "Are sale items refundable?"}
+{"stage": "total", "seconds": 13.816788000003726, "mode": "Multi-Query", "question": "Are sale items refundable?"}
+{"stage": "retrieve", "seconds": 0.04140380000171717, "mode": "Reranked", "question": "What is the refund window for a standard item?"}
+{"stage": "generate", "seconds": 10.696190800001204, "mode": "Reranked", "question": "What is the refund window for a standard item?"}
+{"stage": "total", "seconds": 10.737745200000063, "mode": "Reranked", "question": "What is the refund window for a standard item?"}
+{"stage": "retrieve", "seconds": 0.03949090000241995, "mode": "Reranked", "question": "What is the shipping lead time for Europe?"}
+{"stage": "generate", "seconds": 1.116300700006832, "mode": "Reranked", "question": "What is the shipping lead time for Europe?"}
+{"stage": "total", "seconds": 1.155931100001908, "mode": "Reranked", "question": "What is the shipping lead time for Europe?"}
+{"stage": "retrieve", "seconds": 0.03928300000552554, "mode": "Reranked", "question": "Are sale items refundable?"}
+{"stage": "generate", "seconds": 2.2038344999964465, "mode": "Reranked", "question": "Are sale items refundable?"}
+{"stage": "total", "seconds": 2.243266199999198, "mode": "Reranked", "question": "Are sale items refundable?"}
+{"stage": "retrieve", "seconds": 0.030104600002232473, "mode": "Reranked", "question": "What is the refund window for a standard item?"}
+{"stage": "generate", "seconds": 10.708635700000741, "mode": "Reranked", "question": "What is the refund window for a standard item?"}
+{"stage": "total", "seconds": 10.73886350000248, "mode": "Reranked", "question": "What is the refund window for a standard item?"}
+{"stage": "retrieve", "seconds": 0.02463020000141114, "mode": "Reranked", "question": "What is the shipping lead time for Europe?"}
+{"stage": "generate", "seconds": 1.1507987000004505, "mode": "Reranked", "question": "What is the shipping lead time for Europe?"}
+{"stage": "total", "seconds": 1.175583899996127, "mode": "Reranked", "question": "What is the shipping lead time for Europe?"}
+{"stage": "retrieve", "seconds": 0.044229099999938626, "mode": "Reranked", "question": "Are sale items refundable?"}
+{"stage": "generate", "seconds": 2.2276012000002083, "mode": "Reranked", "question": "Are sale items refundable?"}
+{"stage": "total", "seconds": 2.271973800001433, "mode": "Reranked", "question": "Are sale items refundable?"}

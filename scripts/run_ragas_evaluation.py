@@ -105,7 +105,7 @@ def main():
             metrics = evaluator.evaluate(retriever, top_k=3)
             results[mode_name] = metrics
             logger.info(f"✅ {mode_name} evaluation complete.")
-            logger.info(f"{mode_name} \n {metrics} .")
+            logger.info(f"{mode_name} \n {metrics['aggregated']} .")
         except Exception as e:
             logger.error(f"❌ {mode_name} evaluation failed: {e}")
 
@@ -129,6 +129,45 @@ def main():
         logger.info("Metrics saved to data/evaluation/metrics.csv")
     else:
         logger.warning("No metrics were collected. Check your evaluator.")
+
+    # Persist per-question scores for every mode. An aggregate alone cannot show
+    # whether a 0.8 came from uniformly decent answers or from a few perfect
+    # answers hiding several failures.
+    per_sample_frames = []
+    for mode, metrics in results.items():
+        frame = pd.DataFrame(metrics.get("per_sample") or [])
+        if frame.empty:
+            continue
+        frame.insert(0, "Mode", mode)
+        per_sample_frames.append(frame)
+
+    if per_sample_frames:
+        combined = pd.concat(per_sample_frames, ignore_index=True)
+        destination = Path("data/evaluation/per_sample.csv")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        combined.to_csv(destination, index=False)
+        logger.info(
+            "Per-sample scores for %d mode(s) saved to %s",
+            len(per_sample_frames),
+            destination,
+        )
+
+        # Surface the worst questions per metric, so regressions are visible
+        # without opening the CSV.
+        metric_columns = [
+            c for c in combined.columns
+            if c in ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
+        ]
+        for column in metric_columns:
+            scores = combined[[c for c in ("Mode", "question", column) if c in combined.columns]]
+            scores = scores.dropna(subset=[column]).sort_values(column).head(3)
+            if scores.empty:
+                continue
+            print(f"\nLowest {column}:")
+            for _, row in scores.iterrows():
+                print(f"  {row[column]:.3f}  [{row['Mode']}] {str(row.get('question'))[:70]}")
+    else:
+        logger.warning("No per-sample scores were produced.")
 
 
 if __name__ == "__main__":

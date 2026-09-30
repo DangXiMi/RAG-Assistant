@@ -31,12 +31,31 @@ def load_pages(file_path: Path, metadata: Optional[dict] = None, **options) -> l
 
     This is the page-aware entry point used by the ingestion worker: it keeps
     page and sheet boundaries so chunks can be cited accurately.
+
+    Text cleaning runs here, after the loaders have established page/sheet
+    boundaries and before chunking, so normalisation cannot merge pages.
     """
     from src.config.config import ingestion_options
+    from src.ingestion.cleaning import clean_pages
     from src.ingestion.loaders import load_document
 
     merged = {**ingestion_options(), **options}
-    return load_document(file_path, metadata, **merged)
+
+    # Split options: loaders only understand extraction settings, cleaning only
+    # understands its own. Passing one set to the other raises TypeError.
+    cleaning_enabled = merged.pop("clean", True)
+    cleaning_options = {
+        key: merged.pop(key)
+        for key in ("remove_furniture", "fix_hyphenation", "strip_page_numbers")
+        if key in merged
+    }
+
+    pages = load_document(file_path, metadata, **merged)
+
+    if cleaning_enabled:
+        pages = clean_pages(pages, **cleaning_options)
+
+    return pages
 
 
 def extract_text(file_path: Path) -> str:

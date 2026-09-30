@@ -9,15 +9,24 @@ from src.retrieval.sparse_retriever import SparseRetriever
 
 @pytest.fixture(scope="session")
 def db_conn():
-    """Connect to test Postgres database."""
-    # Use environment variables or fallback to defaults
-    conn = psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST", "localhost"),
-        port=os.getenv("POSTGRES_PORT", "5432"),
-        dbname=os.getenv("POSTGRES_DB", "rag_metadata"),
-        user=os.getenv("POSTGRES_USER", "raglab"),
-        password=os.getenv("POSTGRES_PASSWORD", "raglab")
-    )
+    """Connect to the test Postgres database, or skip if it is unavailable.
+
+    These are integration tests: they need a live PostgreSQL with the `chunks`
+    table. Skipping (rather than erroring) keeps the suite green without
+    hiding anything, because a skip is visible and reports why.
+    """
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=os.getenv("POSTGRES_PORT", "5432"),
+            dbname=os.getenv("POSTGRES_DB", "rag_metadata"),
+            user=os.getenv("POSTGRES_USER", "raglab"),
+            password=os.getenv("POSTGRES_PASSWORD", "raglab"),
+            connect_timeout=5,
+        )
+    except psycopg2.OperationalError as exc:
+        pytest.skip(f"PostgreSQL is not reachable, skipping integration test: {exc}")
+
     conn.autocommit = True  # for test setup
     yield conn
     conn.close()

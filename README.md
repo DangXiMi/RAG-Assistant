@@ -127,7 +127,10 @@ rag-knowledge-assistant/
 │
 ├── scripts/
 │   ├── test_e2e.py                       # End-to-end smoke test
-│   ├── run_evaluation.py                 # Runs RAGAS evaluation for all modes
+│   ├── run_ragas_evaluation.py           # Runs RAGAS evaluation for all modes
+│   ├── benchmark_latency.py              # Per-stage latency and token baseline
+│   ├── verify_ingestion.py               # Checks every supported file format
+│   ├── e2e_live_test.py                  # Live API + worker end-to-end test
 │   └── start_worker.sh                   # Starts the arq worker
 │
 ├── tests/
@@ -207,10 +210,13 @@ streamlit run src/ui/app.py
 1. Launch the Streamlit application at `http://localhost:8501`
 2. In the sidebar, click **Choose a file**
 3. Upload one of the supported document formats:
-   - PDF (`.pdf`)
-   - Microsoft Word (`.docx`)
-   - HTML (`.html`)
-   - Plain Text (`.txt`)
+   - PDF (`.pdf`) — text layer, tables, and **scanned pages via OCR**
+   - Microsoft Word (`.docx`) — paragraphs, headings and tables
+   - Excel (`.xlsx`, `.xlsm`, `.xls`) — one unit per sheet, tables as Markdown
+   - CSV (`.csv`)
+   - HTML (`.html`, `.htm`)
+   - Plain Text (`.txt`, `.md`, `.markdown`)
+   - Images (`.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, `.bmp`, `.webp`, `.gif`) — read with **OCR**
 4. Click **Process Document**
 5. The application will display the indexing progress in real time:
    - **Queued** → **Processing** → **Done**
@@ -271,14 +277,30 @@ The retrieval strategies were evaluated using the **RAGAS** framework on the pro
 ### Reproducing the Benchmark
 
 ```bash
-python scripts/run_evaluation.py
+python scripts/run_ragas_evaluation.py
 ```
 
 The generated metrics are saved to:
 
 ```
-data/evaluation/metrics.csv
+data/evaluation/metrics.csv      # aggregated, one row per mode
+data/evaluation/per_sample.csv   # every question, every mode
 ```
+
+The script also prints the three lowest-scoring questions per metric, so a weak
+aggregate can be traced to the questions that caused it.
+
+### Measuring Latency
+
+```bash
+python scripts/benchmark_latency.py --runs 3
+```
+
+Writes per-stage p50/p95 latency and token usage to
+`data/evaluation/latency_summary.csv`, with raw samples in
+`data/evaluation/latency_samples.jsonl`. Run it before and after a change and
+compare the summaries — AGENTS.md requires a measured baseline for any
+optimisation.
 
 ---
 

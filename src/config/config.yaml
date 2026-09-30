@@ -10,6 +10,12 @@ ingestion:
   # Tables are rendered as Markdown so row/column structure stays retrievable.
   tables:
     extract: true
+  # Text normalisation between loading and chunking.
+  cleaning:
+    enabled: true
+    fix_hyphenation: true      # rejoin words split across line breaks
+    strip_page_numbers: true   # drop lines that are only a page number
+    remove_furniture: true     # drop headers/footers repeated across pages
 
 chunker:
   chunk_size: 512

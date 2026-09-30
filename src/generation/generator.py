@@ -1,4 +1,5 @@
 from src.config.config import CONFIG
+from src.evaluation.metrics import extract_token_usage
 from src.generation.citations import build_source_refs, label, source_labels
 from langsmith import traceable
 from langchain_ollama import ChatOllama
@@ -6,6 +7,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -186,15 +188,26 @@ class Generator:
         self,
         query,
         top_k=5,
-        retriever = None
+        retriever = None,
+        metrics = None
     ):
+        """Answer a query, optionally recording per-stage timings.
 
-        docs = self.retrieve(
-            query,
-            retriever,
-            top_k
+        Args:
+            query: User question.
+            top_k: Number of chunks to retrieve.
+            retriever: Retriever to use; defaults to the one passed to __init__.
+            metrics: Optional `MetricsRecorder`. When supplied, retrieve,
+                generate and total durations plus token usage are recorded.
+        """
 
-        )
+        started = time.perf_counter()
+
+        if metrics is not None:
+            with metrics.stage("retrieve", question=query):
+                docs = self.retrieve(query, retriever, top_k)
+        else:
+            docs = self.retrieve(query, retriever, top_k)
 
         docs = self.filter_by_score(docs)
 
@@ -202,6 +215,9 @@ class Generator:
         # model to reason over an empty context.
         if not docs:
             logger.info("No usable context retrieved; returning not-found response")
+            if metrics is not None:
+                metrics.record_query(answered=False)
+                metrics.add_stage_sample("total", time.perf_counter() - started, question=query)
             return {
                 "answer": NOT_FOUND_MESSAGE,
                 "contexts": [],
@@ -211,15 +227,17 @@ class Generator:
                 "answered": False,
             }
 
-        context = self.build_context(
-            docs
-        )
+        context = self.build_context(docs)
 
-        response = self.generate(
-            context,
-            query
-        )
-
+        if metrics is not None:
+            with metrics.stage("generate", question=query):
+                response = self.generate(context, query)
+            prompt_tokens, completion_tokens = extract_token_usage(response)
+            metrics.add_tokens(prompt=prompt_tokens, completion=completion_tokens)
+            metrics.record_query(answered=True)
+            metrics.add_stage_sample("total", time.perf_counter() - started, question=query)
+        else:
+            response = self.generate(context, query)
 
         return {
             "answer": response.content,

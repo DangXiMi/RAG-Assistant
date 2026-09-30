@@ -19,12 +19,17 @@ DEVICE = CONFIG["embedding"]["device"]
 _INGESTION = CONFIG.get("ingestion", {}) or {}
 _OCR = _INGESTION.get("ocr", {}) or {}
 _TABLES = _INGESTION.get("tables", {}) or {}
+_CLEANING = _INGESTION.get("cleaning", {}) or {}
 
 OCR_ENABLED = _OCR.get("enabled", True)
 OCR_LANGUAGE = _OCR.get("language", "eng")
 OCR_DPI = _OCR.get("dpi", 300)
 OCR_MIN_TEXT_CHARS = _OCR.get("min_text_chars", 40)
 EXTRACT_TABLES = _TABLES.get("extract", True)
+CLEANING_ENABLED = _CLEANING.get("enabled", True)
+FIX_HYPHENATION = _CLEANING.get("fix_hyphenation", True)
+STRIP_PAGE_NUMBERS = _CLEANING.get("strip_page_numbers", True)
+REMOVE_FURNITURE = _CLEANING.get("remove_furniture", True)
 
 
 def ingestion_options() -> dict:
@@ -35,4 +40,8 @@ def ingestion_options() -> dict:
         "ocr_dpi": OCR_DPI,
         "min_text_chars": OCR_MIN_TEXT_CHARS,
         "extract_tables": EXTRACT_TABLES,
+        "clean": CLEANING_ENABLED,
+        "fix_hyphenation": FIX_HYPHENATION,
+        "strip_page_numbers": STRIP_PAGE_NUMBERS,
+        "remove_furniture": REMOVE_FURNITURE,
     }

@@ -7,25 +7,66 @@ from psycopg2.extras import Json
 from src.retrieval.sparse_retriever import SparseRetriever
 
 
+def _test_database_name() -> str:
+    """Database these tests are allowed to modify.
+
+    These tests create and drop a `chunks` table. Pointing them at the normal
+    database is destructive: they used to drop the shared table and leave it
+    gone in teardown, which wiped whatever was indexed and made the running API
+    fail with `relation "chunks" does not exist`.
+
+    So a dedicated database is used, overridable with POSTGRES_TEST_DB.
+    """
+    return os.getenv("POSTGRES_TEST_DB", "rag_test")
+
+
+def _ensure_test_database() -> None:
+    """Create the test database if it does not exist yet.
+
+    Connects to the default `postgres` maintenance database, because you cannot
+    create a database from inside the one being created.
+    """
+    target = _test_database_name()
+    conn = psycopg2.connect(
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=os.getenv("POSTGRES_PORT", "5432"),
+        dbname="postgres",
+        user=os.getenv("POSTGRES_USER", "raglab"),
+        password=os.getenv("POSTGRES_PASSWORD", "raglab"),
+        connect_timeout=5,
+    )
+    conn.autocommit = True
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (target,))
+            if cur.fetchone() is None:
+                # Identifier cannot be parameterised; it comes from our own
+                # config, not from user input.
+                cur.execute(f'CREATE DATABASE "{target}"')
+    finally:
+        conn.close()
+
+
 @pytest.fixture(scope="session")
 def db_conn():
-    """Connect to the test Postgres database, or skip if it is unavailable.
+    """Connect to the dedicated test database, or skip if unavailable.
 
-    These are integration tests: they need a live PostgreSQL with the `chunks`
-    table. Skipping (rather than erroring) keeps the suite green without
-    hiding anything, because a skip is visible and reports why.
+    These are integration tests: they need a live PostgreSQL. Skipping (rather
+    than erroring) keeps the suite green without hiding anything, because a skip
+    is visible and reports why.
     """
     try:
+        _ensure_test_database()
         conn = psycopg2.connect(
             host=os.getenv("POSTGRES_HOST", "localhost"),
             port=os.getenv("POSTGRES_PORT", "5432"),
-            dbname=os.getenv("POSTGRES_DB", "rag_metadata"),
+            dbname=_test_database_name(),
             user=os.getenv("POSTGRES_USER", "raglab"),
             password=os.getenv("POSTGRES_PASSWORD", "raglab"),
             connect_timeout=5,
         )
-    except psycopg2.OperationalError as exc:
-        pytest.skip(f"PostgreSQL is not reachable, skipping integration test: {exc}")
+    except (psycopg2.OperationalError, psycopg2.Error) as exc:
+        pytest.skip(f"PostgreSQL test database unavailable, skipping: {exc}")
 
     conn.autocommit = True  # for test setup
     yield conn

@@ -243,8 +243,10 @@ def reset_stores() -> None:
 
     conn = sparse_store.connect()
     try:
-        # Truncate rather than drop: the schema is unchanged, and rebuilding it
-        # is not the point of a data reset.
+        # The table may not exist yet on a fresh database, so create it before
+        # clearing. Truncate rather than drop: the schema is unchanged, and
+        # rebuilding it is not the point of a data reset.
+        sparse_store.ensure_table(conn)
         with conn.cursor() as cur:
             cur.execute("DELETE FROM chunks")
         print("Cleared sparse index")

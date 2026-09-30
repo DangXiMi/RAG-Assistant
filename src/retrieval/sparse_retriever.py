@@ -1,8 +1,11 @@
 # src/retrieval/sparse_retriever.py
 
+import logging
 from typing import Dict, List, Optional
 import psycopg2
 from src.config.config import CONFIG
+
+logger = logging.getLogger(__name__)
 
 
 class SparseRetriever:
@@ -70,6 +73,18 @@ class SparseRetriever:
                 )
 
                 rows = cur.fetchall()
+
+        except psycopg2.errors.UndefinedTable:
+            # The sparse index has not been created yet: a fresh database, or a
+            # reset. Degrade to no keyword hits rather than failing the request,
+            # so dense retrieval can still answer. Raising here turned one
+            # missing table into a 500 on every query.
+            logger.warning(
+                "Sparse index table 'chunks' does not exist; returning no "
+                "keyword results. Run the ingestion worker or "
+                "sparse_store.ensure_table() to create it."
+            )
+            return []
 
         except psycopg2.Error as e:
             raise RuntimeError(

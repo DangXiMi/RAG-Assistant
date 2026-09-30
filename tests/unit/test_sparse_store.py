@@ -7,6 +7,7 @@ the suite stays green on a machine without the backing services.
 import os
 import uuid
 
+import psycopg2
 import pytest
 
 from src.ingestion.chunker import Chunk
@@ -234,3 +235,68 @@ def test_count_sources_reports_distinct_documents(conn):
         assert cur.fetchone()[0] == 1
 
     sparse_store.delete_source(conn, source)
+
+
+# --- Missing-table resilience ----------------------------------------------
+
+class _FakeCursor:
+    """Cursor that fails exactly like Postgres when a table is absent."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def close(self):
+        # The retriever's constructor probes the connection with
+        # `db_conn.cursor().close()`.
+        return None
+
+    def execute(self, *args, **kwargs):
+        raise psycopg2.errors.UndefinedTable('relation "chunks" does not exist')
+
+    def fetchall(self):  # pragma: no cover - never reached
+        return []
+
+
+class _FakeConnection:
+    def cursor(self):
+        return _FakeCursor()
+
+
+def test_sparse_search_degrades_when_table_is_missing():
+    """A missing sparse table must not fail the query.
+
+    This was a user-visible bug: an absent `chunks` table made every request
+    return HTTP 500 "Sparse retrieval failed", so the whole assistant was down
+    even though dense retrieval was perfectly healthy. Returning no keyword
+    hits lets the dense half answer.
+    """
+    from src.retrieval.sparse_retriever import SparseRetriever
+
+    retriever = SparseRetriever(
+        db_conn=_FakeConnection(),
+        config={"sparse_retrieval": {"default_top_k": 3, "score_threshold": 0.0}},
+    )
+
+    assert retriever.search("refund policy", top_k=3) == []
+
+
+def test_sparse_search_still_raises_other_database_errors():
+    """Only the missing-table case is tolerated; real faults must surface."""
+
+    class _BrokenCursor(_FakeCursor):
+        def execute(self, *args, **kwargs):
+            raise psycopg2.errors.InsufficientPrivilege("permission denied")
+
+    class _BrokenConnection:
+        def cursor(self):
+            return _BrokenCursor()
+
+    from src.retrieval.sparse_retriever import SparseRetriever
+
+    retriever = SparseRetriever(db_conn=_BrokenConnection(), config={})
+
+    with pytest.raises(RuntimeError, match="PostgreSQL search failed"):
+        retriever.search("anything", top_k=3)

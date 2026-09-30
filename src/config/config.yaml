@@ -78,6 +78,18 @@ reranking:
   final_k: 5        # Return this many after reranking
   batch_size: 32
 
+evaluation:
+  # Judge LLM used by RAGAS. It must be an Ollama model that is actually
+  # installed: `ollama list`. Must differ from the generator model to avoid
+  # a model grading its own answers, but ideally no larger, since the judge
+  # runs many times per question per metric.
+  judge_model: "llama3.1:8b"
+  judge_temperature: 0.0
+  timeout: 300
+  max_workers: 1
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  golden_file: "data/evaluation/golden.jsonl"
+
 redis:
   host: "localhost"
   port: 6379

@@ -154,18 +154,23 @@ def main():
 
         # Surface the worst questions per metric, so regressions are visible
         # without opening the CSV.
+        # RAGAS names the question column `user_input`, not `question`.
+        question_column = next(
+            (c for c in ("user_input", "question") if c in combined.columns), None
+        )
         metric_columns = [
             c for c in combined.columns
             if c in ("faithfulness", "answer_relevancy", "context_precision", "context_recall")
         ]
         for column in metric_columns:
-            scores = combined[[c for c in ("Mode", "question", column) if c in combined.columns]]
-            scores = scores.dropna(subset=[column]).sort_values(column).head(3)
+            columns = [c for c in ("Mode", question_column, column) if c]
+            scores = combined[columns].dropna(subset=[column]).sort_values(column).head(3)
             if scores.empty:
                 continue
             print(f"\nLowest {column}:")
             for _, row in scores.iterrows():
-                print(f"  {row[column]:.3f}  [{row['Mode']}] {str(row.get('question'))[:70]}")
+                question = row[question_column] if question_column else ""
+                print(f"  {row[column]:.3f}  [{row['Mode']}] {str(question)[:70]}")
     else:
         logger.warning("No per-sample scores were produced.")
 

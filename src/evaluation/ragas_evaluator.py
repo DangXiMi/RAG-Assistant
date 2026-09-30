@@ -26,37 +26,74 @@ GOLDEN_FILE = Path("data/evaluation/golden.jsonl")
 # Per-question scores, so a low average can be traced to specific questions.
 PER_SAMPLE_FILE = Path("data/evaluation/per_sample.csv")
 
+# Judge defaults, overridden by the `evaluation` block in config.yaml.
+_DEFAULT_JUDGE_MODEL = "llama3.1:8b"
+_DEFAULT_EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+
+
+def _evaluation_config(config: dict | None = None) -> dict:
+    """Read the `evaluation` block, tolerating a missing or partial config."""
+    if config is not None:
+        return config.get("evaluation", {}) or {}
+    try:
+        from src.config.config import CONFIG
+
+        return CONFIG.get("evaluation", {}) or {}
+    except Exception:  # pragma: no cover - config import failure
+        return {}
+
+
 class RAGASEvaluator():
-    def __init__(self, generator: Generator, dataset_path: str = GOLDEN_FILE  ):
+    def __init__(self, generator: Generator, dataset_path: str | None = None,
+                 config: dict | None = None):
+        eval_config = _evaluation_config(config)
+
         self.generator = generator
 
         # Validate the dataset up front. Loading the judge models below is slow,
         # so failing fast on a missing/misconfigured golden set saves minutes and
         # gives a clear error instead of a confusing one much later.
-        self.data_path = Path(dataset_path)
+        self.data_path = Path(
+            dataset_path or eval_config.get("golden_file") or GOLDEN_FILE
+        )
         if not self.data_path.exists():
             raise FileNotFoundError(
                 f"Golden dataset not found: {self.data_path}. "
                 f"Point RAGASEvaluator at a .jsonl file with one record per line."
             )
 
+        # The judge model used to be hardcoded to a model that is not installed
+        # by default, so the evaluation could not run at all. It is configurable
+        # now; see the `evaluation` block in config.yaml.
+        self.embedding_model_name = (
+            eval_config.get("embedding_model") or _DEFAULT_EMBEDDING_MODEL
+        )
+        self.judge_model_name = eval_config.get("judge_model") or _DEFAULT_JUDGE_MODEL
+        self.judge_temperature = eval_config.get("judge_temperature", 0.0)
+
         self.evaluator_embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
+            model_name=self.embedding_model_name,
             model_kwargs={'device': 'cpu'},
             encode_kwargs={'normalize_embeddings': True}
         )
         self.run_config = RunConfig(
-            timeout=300,
-            max_workers=1
+            timeout=eval_config.get("timeout", 300),
+            max_workers=eval_config.get("max_workers", 1)
         )
-        
+
         self.evaluator_llm = LangchainLLMWrapper(
             ChatOllama(
-                model="qwen2.5:7b",
-                temperature=0,
-                request_timeout=300
+                model=self.judge_model_name,
+                temperature=self.judge_temperature,
+                request_timeout=eval_config.get("timeout", 300)
             )
         )
+        logger.info(
+            "RAGAS judge model: %s (embeddings: %s)",
+            self.judge_model_name,
+            self.embedding_model_name,
+        )
+
         self.metrics = [
                 faithfulness,
                 answer_relevancy,

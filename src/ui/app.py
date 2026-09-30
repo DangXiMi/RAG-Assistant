@@ -215,14 +215,6 @@ st.markdown(
     "retrieved passages and cite the file and page they came from."
 )
 st.caption(f"Strategy: **{mode}** · Backend: `{BASE_URL}`")
-
-if not st.session_state.messages:
-    st.info(
-        "**Try one of these** (they only work once matching documents are uploaded):\n\n"
-        "- What is the refund policy?\n"
-        "- What is the shipping lead time for Europe?\n"
-        "- Are sale items refundable?"
-    )
 st.markdown("---")
 
 def format_source(source) -> str:

@@ -69,10 +69,10 @@ for collection in ("markdown", "caption", "info", "success", "warning", "error",
 page_text = " ".join(text_parts)
 
 print()
-for needle in ("Backend", "Retrieval Strategy", "refund", "Connected"):
+for needle in ("Backend", "Retrieval Strategy", "Connected"):
     found = needle.lower() in page_text.lower()
     print(f"page mentions {needle!r}: {found}")
-    if needle in ("Backend", "Connected") and not found:
+    if not found:
         errors.append(f"missing expected UI text: {needle}")
 
 # Drive the actual chat flow: type the assignment's example question and let
